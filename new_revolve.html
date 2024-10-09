@@ -3,79 +3,107 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Three.js LatheGeometry from SVG</title>
+  <title>Interactive Lathe Shape</title>
   <style>
-    body { margin: 0; }
+    body { margin: 0; overflow: hidden; }
+    #controls { position: absolute; top: 10px; left: 10px; z-index: 100; }
     canvas { display: block; }
   </style>
 </head>
 <body>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/SVGLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/exporters/STLExporter.js"></script> <!-- STLExporter -->
+
+  <div id="controls">
+    <label for="radiusRange">Radius: <span id="radiusValue">2</span></label>
+    <input type="range" id="radiusRange" min="1" max="5" step="0.1" value="2">
+    <br>
+    <label for="heightRange">Height: <span id="heightValue">5</span></label>
+    <input type="range" id="heightRange" min="1" max="10" step="0.1" value="5">
+    <br>
+    <button onclick="exportSTL()">Export as STL</button>
+  </div>
+
   <script>
-    // Scene, camera, and renderer initialization
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // Load and parse the SVG file
-    const loader = new THREE.SVGLoader();
-    loader.load('/Users/jorgemuyo/Desktop/IAAC/THESIS_CODE/SVG/Asset.svg', function (data) {
-      const paths = data.paths;
+    // Initial parameters
+    let radius = 2;
+    let height = 5;
+    let points = createProfile(radius, height);
 
-      // We'll use the first path found in the SVG (assuming it’s a single contour for the profile)
-      const path = paths[0];
+    // Create the initial lathe geometry and mesh
+    let latheGeometry = new THREE.LatheGeometry(points);
+    const material = new THREE.MeshBasicMaterial({ color: 0x0077ff, wireframe: true });
+    let latheMesh = new THREE.Mesh(latheGeometry, material);
+    scene.add(latheMesh);
 
-      // Convert SVG path to points
-      const points = path.getSpacedPoints(50);
-      points.forEach(p => p.multiplyScalar(0.1)); // Optionally scale points
-
-      // Normalize the points to be centered
-      let minY = Infinity;
-      let maxY = -Infinity;
-      points.forEach(p => {
-        if (p.y < minY) minY = p.y;
-        if (p.y > maxY) maxY = p.y;
-      });
-      const height = maxY - minY;
-      points.forEach(p => p.y -= (height / 2));
-
-      // Create LatheGeometry
-      const latheGeometry = new THREE.LatheGeometry(points);
-
-      // Material and mesh
-      const material = new THREE.MeshBasicMaterial({ color: 0x0077ff, wireframe: true });
-      const latheMesh = new THREE.Mesh(latheGeometry, material);
-      scene.add(latheMesh);
-    });
-
-    // Position camera
     camera.position.z = 10;
 
-    // Animation loop
     function animate() {
       requestAnimationFrame(animate);
-
-      // Rotation for better visualization
-      scene.children.forEach(child => {
-        if (child.isMesh) {
-          child.rotation.y += 0.01;
-        }
-      });
-
+      latheMesh.rotation.y += 0.01;
       renderer.render(scene, camera);
     }
-
     animate();
 
-    // Handle window resize
+    // Adjust scene and camera on window resize
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
+
+    // Function to create profile points
+    function createProfile(radius, height) {
+      const points = [];
+      const numPoints = 20;
+      for (let i = 0; i <= numPoints; i++) {
+        const y = (i / numPoints) * height - height / 2;
+        const x = radius;  // Constant radius for simplicity; can be modified to vary
+        points.push(new THREE.Vector2(x, y));
+      }
+      return points;
+    }
+
+    // Function to update the geometry
+    function updateGeometry() {
+      scene.remove(latheMesh);
+      points = createProfile(radius, height);
+      latheGeometry = new THREE.LatheGeometry(points);
+      latheMesh = new THREE.Mesh(latheGeometry, material);
+      scene.add(latheMesh);
+    }
+
+    // Listen to slider changes
+    document.getElementById('radiusRange').addEventListener('input', (event) => {
+      radius = parseFloat(event.target.value);
+      document.getElementById('radiusValue').textContent = radius.toFixed(1);
+      updateGeometry();
+    });
+
+    document.getElementById('heightRange').addEventListener('input', (event) => {
+      height = parseFloat(event.target.value);
+      document.getElementById('heightValue').textContent = height.toFixed(1);
+      updateGeometry();
+    });
+
+    // Export STL function
+    function exportSTL() {
+      const exporter = new THREE.STLExporter();
+      const stlData = exporter.parse(latheMesh);
+      const blob = new Blob([stlData], { type: 'text/plain' });
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.href = URL.createObjectURL(blob);
+      link.download = 'latheShape.stl';
+      link.click();
+    }
   </script>
 </body>
 </html>
