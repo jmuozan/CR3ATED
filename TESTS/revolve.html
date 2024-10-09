@@ -3,77 +3,105 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cylinder Test Three.js</title>
+  <title>Original</title>
   <style>
-    body { margin: 0; }
+    body { margin: 0; overflow: hidden; }
+    #controls { position: absolute; top: 10px; left: 10px; z-index: 100; }
     canvas { display: block; }
   </style>
 </head>
 <body>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/exporters/STLExporter.js"></script> <!-- STLExporter -->
-  
-  <!-- Button to export STL -->
-  <button onclick="exportSTL()">Export as STL</button>
-  
+
+  <div id="controls">
+    <label for="radiusRange">Radius: <span id="radiusValue">2</span></label>
+    <input type="range" id="radiusRange" min="1" max="5" step="0.1" value="2">
+    <br>
+    <label for="heightRange">Height: <span id="heightValue">5</span></label>
+    <input type="range" id="heightRange" min="1" max="10" step="0.1" value="5">
+    <br>
+    <button onclick="exportSTL()">Export as STL</button>
+  </div>
+
   <script>
-    // Scene, camera, and renderer initialization
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // Points to define the profile of the cylinder
-    const points = [];
-    const height = 5;  // height of the cylinder
-    const radius = 2;  // radius of the cylinder
-    const numPoints = 20; // the number of points defining the circle
-    for (let i = 0; i <= numPoints; i++) {
-      const y = (i / numPoints) * height - height / 2; // y should be from -height/2 to +height/2
-      points.push(new THREE.Vector2(radius, y));
-    }
+    // Initial parameters
+    let radius = 2;
+    let height = 5;
+    let points = createProfile(radius, height);
 
-    // LatheGeometry to create a cylinder by revolving the points around the y-axis
-    const latheGeometry = new THREE.LatheGeometry(points);
-
-    // Material and mesh
+    // Create the initial lathe geometry and mesh
+    let latheGeometry = new THREE.LatheGeometry(points);
     const material = new THREE.MeshBasicMaterial({ color: 0x0077ff, wireframe: true });
-    const cylinder = new THREE.Mesh(latheGeometry, material);
-    scene.add(cylinder);
+    let latheMesh = new THREE.Mesh(latheGeometry, material);
+    scene.add(latheMesh);
 
-    // Position camera
     camera.position.z = 10;
 
-    // Animation loop
     function animate() {
       requestAnimationFrame(animate);
-
-      // Rotation only on the y-axis for better visualization
-      cylinder.rotation.y += 0.01;
-
+      latheMesh.rotation.y += 0.01;
       renderer.render(scene, camera);
     }
-
     animate();
 
-    // Handle window resize
+    // Adjust scene and camera on window resize
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
+    // Function to create profile points
+    function createProfile(radius, height) {
+      const points = [];
+      const numPoints = 20;
+      for (let i = 0; i <= numPoints; i++) {
+        const y = (i / numPoints) * height - height / 2;
+        const x = radius;  // Constant radius for simplicity; can be modified to vary
+        points.push(new THREE.Vector2(x, y));
+      }
+      return points;
+    }
+
+    // Function to update the geometry
+    function updateGeometry() {
+      scene.remove(latheMesh);
+      points = createProfile(radius, height);
+      latheGeometry = new THREE.LatheGeometry(points);
+      latheMesh = new THREE.Mesh(latheGeometry, material);
+      scene.add(latheMesh);
+    }
+
+    // Listen to slider changes
+    document.getElementById('radiusRange').addEventListener('input', (event) => {
+      radius = parseFloat(event.target.value);
+      document.getElementById('radiusValue').textContent = radius.toFixed(1);
+      updateGeometry();
+    });
+
+    document.getElementById('heightRange').addEventListener('input', (event) => {
+      height = parseFloat(event.target.value);
+      document.getElementById('heightValue').textContent = height.toFixed(1);
+      updateGeometry();
+    });
+
     // Export STL function
     function exportSTL() {
       const exporter = new THREE.STLExporter();
-      const stlData = exporter.parse(cylinder);
+      const stlData = exporter.parse(latheMesh);
       const blob = new Blob([stlData], { type: 'text/plain' });
       const link = document.createElement('a');
       link.style.display = 'none';
       document.body.appendChild(link);
       link.href = URL.createObjectURL(blob);
-      link.download = 'cylinder.stl';
+      link.download = 'latheShape.stl';
       link.click();
     }
   </script>
