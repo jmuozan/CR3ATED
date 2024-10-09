@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Original</title>
+  <title>Original with Subdivision Control</title>
   <style>
     body { margin: 0; overflow: hidden; }
     #controls { position: absolute; top: 10px; left: 10px; z-index: 100; }
@@ -21,7 +21,10 @@
     <label for="heightRange">Height: <span id="heightValue">5</span></label>
     <input type="range" id="heightRange" min="1" max="10" step="0.1" value="5">
     <br>
-    <button onclick="exportSTL()">Export as STL</button>
+    <label for="subdivisionsRange">Subdivisions: <span id="subdivisionsValue">12</span></label>
+    <input type="range" id="subdivisionsRange" min="3" max="32" step="1" value="12">
+    <br>
+    <button onclick="exportSTL()">Export .stl</button>
   </div>
 
   <script>
@@ -34,10 +37,11 @@
     // Initial parameters
     let radius = 2;
     let height = 5;
+    let subdivisions = 12; // Initial number of subdivisions
     let points = createProfile(radius, height);
 
     // Create the initial lathe geometry and mesh
-    let latheGeometry = new THREE.LatheGeometry(points);
+    let latheGeometry = new THREE.LatheGeometry(points, subdivisions);
     const material = new THREE.MeshBasicMaterial({ color: 0x0077ff, wireframe: true });
     let latheMesh = new THREE.Mesh(latheGeometry, material);
     scene.add(latheMesh);
@@ -61,10 +65,10 @@
     // Function to create profile points
     function createProfile(radius, height) {
       const points = [];
-      const numPoints = 20;
+      const numPoints = 20; // Number of radial segments
       for (let i = 0; i <= numPoints; i++) {
         const y = (i / numPoints) * height - height / 2;
-        const x = radius;  // Constant radius for simplicity; can be modified to vary
+        const x = radius;
         points.push(new THREE.Vector2(x, y));
       }
       return points;
@@ -74,7 +78,7 @@
     function updateGeometry() {
       scene.remove(latheMesh);
       points = createProfile(radius, height);
-      latheGeometry = new THREE.LatheGeometry(points);
+      latheGeometry = new THREE.LatheGeometry(points, subdivisions);
       latheMesh = new THREE.Mesh(latheGeometry, material);
       scene.add(latheMesh);
     }
@@ -92,7 +96,12 @@
       updateGeometry();
     });
 
-    // Export STL function
+    document.getElementById('subdivisionsRange').addEventListener('input', (event) => {
+      subdivisions = parseInt(event.target.value);
+      document.getElementById('subdivisionsValue').textContent = subdivisions;
+      updateGeometry();
+    });
+
     function exportSTL() {
       const exporter = new THREE.STLExporter();
       const stlData = exporter.parse(latheMesh);

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Draw a Vector with Mouse</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="vectorCanvas" width="500" height="500"></canvas>
+    <script>
+        const canvas = document.getElementById("vectorCanvas");
+        const context = canvas.getContext("2d");
+        let isDrawing = false;
+        let startX, startY, endX, endY;
+
+        function drawVector(startX, startY, endX, endY) {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.beginPath();
+            context.moveTo(startX, startY);
+            context.lineTo(endX, endY);
+            context.strokeStyle = "black";
+            context.lineWidth = 2;
+            context.stroke();
+
+            // Draw the arrowhead
+            const headlen = 10;
+            const angle = Math.atan2(endY - startY, endX - startX);
+            context.lineTo(endX - headlen * Math.cos(angle - Math.PI / 6), endY - headlen * Math.sin(angle - Math.PI / 6));
+            context.moveTo(endX, endY);
+            context.lineTo(endX - headlen * Math.cos(angle + Math.PI / 6), endY - headlen * Math.sin(angle + Math.PI / 6));
+            context.stroke();
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            startX = e.offsetX;
+            startY = e.offsetY;
+            isDrawing = true;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDrawing) {
+                endX = e.offsetX;
+                endY = e.offsetY;
+                drawVector(startX, startY, endX, endY);
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDrawing = false;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isDrawing = false;
+        });
+
+    </script>
+</body>
+</html>

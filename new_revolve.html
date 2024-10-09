@@ -24,7 +24,7 @@
     <label for="subdivisionsRange">Subdivisions: <span id="subdivisionsValue">12</span></label>
     <input type="range" id="subdivisionsRange" min="3" max="32" step="1" value="12">
     <br>
-    <button onclick="exportSTL()">Export as STL</button>
+    <button onclick="exportSTL()">Export .stl</button>
   </div>
 
   <script>
@@ -102,7 +102,6 @@
       updateGeometry();
     });
 
-    // Export STL function
     function exportSTL() {
       const exporter = new THREE.STLExporter();
       const stlData = exporter.parse(latheMesh);
