@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Three.js LatheGeometry from SVG</title>
+  <style>
+    body { margin: 0; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/SVGLoader.js"></script>
+  <script>
+    // Scene, camera, and renderer initialization
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Load and parse the SVG file
+    const loader = new THREE.SVGLoader();
+    loader.load('/Users/jorgemuyo/Desktop/IAAC/THESIS_CODE/SVG/Asset.svg', function (data) {
+      const paths = data.paths;
+
+      // We'll use the first path found in the SVG (assuming it’s a single contour for the profile)
+      const path = paths[0];
+
+      // Convert SVG path to points
+      const points = path.getSpacedPoints(50);
+      points.forEach(p => p.multiplyScalar(0.1)); // Optionally scale points
+
+      // Normalize the points to be centered
+      let minY = Infinity;
+      let maxY = -Infinity;
+      points.forEach(p => {
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      });
+      const height = maxY - minY;
+      points.forEach(p => p.y -= (height / 2));
+
+      // Create LatheGeometry
+      const latheGeometry = new THREE.LatheGeometry(points);
+
+      // Material and mesh
+      const material = new THREE.MeshBasicMaterial({ color: 0x0077ff, wireframe: true });
+      const latheMesh = new THREE.Mesh(latheGeometry, material);
+      scene.add(latheMesh);
+    });
+
+    // Position camera
+    camera.position.z = 10;
+
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Rotation for better visualization
+      scene.children.forEach(child => {
+        if (child.isMesh) {
+          child.rotation.y += 0.01;
+        }
+      });
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
