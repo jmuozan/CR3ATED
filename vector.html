@@ -1,62 +1,134 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Draw a Vector with Mouse</title>
+    <title>Draw Vector Lines with VectorJS</title>
     <style>
-        canvas {
-            border: 1px solid rgb(172, 62, 62);
-            cursor: crosshair;
+        #drawingCanvas {
+            border: 1px solid black;
+            width: 100%;
+            height: 100vh;
+        }
+
+        #controlPanel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 10px;
+            border: 1px solid #ccc;
+            z-index: 1000;
         }
     </style>
 </head>
+
 <body>
-    <canvas id="vectorCanvas" width="500" height="500"></canvas>
+    <div id="controlPanel">
+        <label for="controlPointsSelector">Number of Control Points:</label>
+        <select id="controlPointsSelector">
+            <option value="4">4</option>
+            <option value="3">3</option>
+            <option value="2">2</option>
+            <!-- You can add more options if needed -->
+        </select>
+        <button id="resetButton">Reset</button>
+    </div>
+    <svg id="drawingCanvas"></svg>
+
+    <!-- Include VectorJS Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vectorjs/1.0.4/vector.min.js"></script>
+
     <script>
-        const canvas = document.getElementById("vectorCanvas");
-        const context = canvas.getContext("2d");
-        let isDrawing = false;
-        let startX, startY, endX, endY;
+        document.addEventListener('DOMContentLoaded', function () {
+            const svg = document.getElementById('drawingCanvas');
+            const controlSelector = document.getElementById('controlPointsSelector');
+            const resetButton = document.getElementById('resetButton');
+            let numberOfControlPoints = parseInt(controlSelector.value);
 
-        function drawVector(startX, startY, endX, endY) {
-            context.clearRect(0, 0, canvas.width, canvas.height);
-            context.beginPath();
-            context.moveTo(startX, startY);
-            context.lineTo(endX, endY);
-            context.strokeStyle = "black";
-            context.lineWidth = 2;
-            context.stroke();
+            controlSelector.addEventListener('change', function () {
+                numberOfControlPoints = parseInt(this.value);
+                clearCanvas();
+            });
 
-            // Draw the arrowhead
-            const headlen = 10;
-            const angle = Math.atan2(endY - startY, endX - startX);
-            context.lineTo(endX - headlen * Math.cos(angle - Math.PI / 6), endY - headlen * Math.sin(angle - Math.PI / 6));
-            context.moveTo(endX, endY);
-            context.lineTo(endX - headlen * Math.cos(angle + Math.PI / 6), endY - headlen * Math.sin(angle + Math.PI / 6));
-            context.stroke();
-        }
+            resetButton.addEventListener('click', function () {
+                clearCanvas();
+            });
 
-        canvas.addEventListener('mousedown', (e) => {
-            startX = e.offsetX;
-            startY = e.offsetY;
-            isDrawing = true;
-        });
+            const controlPoints = [];
+            let isDragging = false;
+            let selectedControlPoint = null;
 
-        canvas.addEventListener('mousemove', (e) => {
-            if (isDrawing) {
-                endX = e.offsetX;
-                endY = e.offsetY;
-                drawVector(startX, startY, endX, endY);
+            function createControlPoint(x, y) {
+                const point = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                point.setAttribute('cx', x);
+                point.setAttribute('cy', y);
+                point.setAttribute('r', 5);
+                point.setAttribute('fill', 'red');
+                svg.appendChild(point);
+                return point;
             }
-        });
 
-        canvas.addEventListener('mouseup', () => {
-            isDrawing = false;
-        });
+            function createPath(d) {
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', d);
+                path.setAttribute('stroke', 'black');
+                path.setAttribute('fill', 'none');
+                svg.appendChild(path);
+                return path;
+            }
 
-        canvas.addEventListener('mouseleave', () => {
-            isDrawing = false;
+            function updatePath() {
+                if (controlPoints.length < 2) return;
+                let d = `M ${controlPoints[0].getAttribute('cx')} ${controlPoints[0].getAttribute('cy')}`;
+                if (numberOfControlPoints === 4 && controlPoints.length === 4) {
+                    d += ` C ${controlPoints[1].getAttribute('cx')} ${controlPoints[1].getAttribute('cy')}, ${controlPoints[2].getAttribute('cx')} ${controlPoints[2].getAttribute('cy')}, ${controlPoints[3].getAttribute('cx')} ${controlPoints[3].getAttribute('cy')}`;
+                } else if (numberOfControlPoints === 3 && controlPoints.length === 3) {
+                    d += ` Q ${controlPoints[1].getAttribute('cx')} ${controlPoints[1].getAttribute('cy')}, ${controlPoints[2].getAttribute('cx')} ${controlPoints[2].getAttribute('cy')}`;
+                } else if (numberOfControlPoints === 2 && controlPoints.length === 2) {
+                    d += ` L ${controlPoints[1].getAttribute('cx')} ${controlPoints[1].getAttribute('cy')}`;
+                }
+                createPath(d);
+            }
+
+            function clearCanvas() {
+                while (svg.firstChild) {
+                    svg.removeChild(svg.firstChild);
+                }
+                controlPoints.length = 0;
+                isDragging = false;
+                selectedControlPoint = null;
+            }
+
+            svg.addEventListener('mousedown', function (e) {
+                const { offsetX, offsetY } = e;
+                if (controlPoints.length < numberOfControlPoints) {
+                    controlPoints.push(createControlPoint(offsetX, offsetY));
+                    if (controlPoints.length === numberOfControlPoints) updatePath();
+                } else {
+                    const point = e.target;
+                    if (point.tagName === 'circle') {
+                        isDragging = true;
+                        selectedControlPoint = point;
+                    }
+                }
+            });
+
+            svg.addEventListener('mousemove', function (e) {
+                if (isDragging && selectedControlPoint) {
+                    const { offsetX, offsetY } = e;
+                    selectedControlPoint.setAttribute('cx', offsetX);
+                    selectedControlPoint.setAttribute('cy', offsetY);
+                    svg.querySelectorAll('path').forEach(path => path.remove());
+                    updatePath();
+                }
+            });
+
+            svg.addEventListener('mouseup', function () {
+                isDragging = false;
+                selectedControlPoint = null;
+            });
         });
     </script>
 </body>
