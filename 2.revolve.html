@@ -24,7 +24,7 @@
 </head>
 <body>
     <div id="interface">
-        <h1>SVG Path Points Extractor & 3D Viewer</h1>
+        <h1>Draw profile to 3D revolution</h1>
         <input type="file" id="fileInput" accept=".svg"/>
         <input type="number" id="pointCount" placeholder="Number of Points" min="1" value="5"/>
         <button id="extractButton">Extract & Visualize</button>
@@ -34,6 +34,18 @@
         <br>
         <label for="scaleRange">Scale: <span id="scaleValue">1.0</span></label>
         <input type="range" id="scaleRange" min="0.1" max="10" step="0.1" value="1.0">
+        <br>
+        <label for="rotateX">Rotate X: </label>
+        <input type="range" id="rotateXRange" min="0" max="360" step="1" value="0">
+        <input type="number" id="rotateXInput" min="0" max="360" step="1" value="0">°
+        <br>
+        <label for="rotateY">Rotate Y: </label>
+        <input type="range" id="rotateYRange" min="0" max="360" step="1" value="0">
+        <input type="number" id="rotateYInput" min="0" max="360" step="1" value="0">°
+        <br>
+        <label for="rotateZ">Rotate Z: </label>
+        <input type="range" id="rotateZRange" min="0" max="360" step="1" value="0">
+        <input type="number" id="rotateZInput" min="0" max="360" step="1" value="0">°
         <br>
         <button onclick="resetCamera()">Reset Camera</button>
         <button onclick="exportSTL()">Export .stl</button>
@@ -62,7 +74,7 @@
         controls.dampingFactor = 0.05;
 
         let subdivisions = 12;
-        let scale = 1.0;  // Initial scale
+        let scale = 1.0;
         let solidMesh, wireframeMesh;
         const solidMaterial = new THREE.MeshPhongMaterial({ color: 0x0077ff });
         const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
@@ -117,13 +129,9 @@
         }
 
         function animate() {
-          requestAnimationFrame(animate);
-          if(solidMesh && wireframeMesh) {
-            solidMesh.rotation.y += 0.01;
-            wireframeMesh.rotation.y += 0.01;
-          }
-          controls.update();
-          renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
         }
         animate();
 
@@ -144,6 +152,13 @@
 
             solidMesh.scale.set(scale, scale, scale);
             wireframeMesh.scale.set(scale, scale, scale);
+
+            solidMesh.rotation.set(
+                THREE.MathUtils.degToRad(document.getElementById('rotateXRange').value),
+                THREE.MathUtils.degToRad(document.getElementById('rotateYRange').value),
+                THREE.MathUtils.degToRad(document.getElementById('rotateZRange').value)
+            );
+            wireframeMesh.rotation.copy(solidMesh.rotation);
 
             scene.add(solidMesh, wireframeMesh);
             adjustCameraToObject(solidMesh);
@@ -179,6 +194,28 @@
                 solidMesh.scale.set(scale, scale, scale);
                 wireframeMesh.scale.set(scale, scale, scale);
             }
+        });
+
+        function updateRotation(axis, angle) {
+            if(solidMesh && wireframeMesh) {
+                const radians = THREE.MathUtils.degToRad(angle);
+                solidMesh.rotation[axis] = radians;
+                wireframeMesh.rotation[axis] = radians;
+                document.getElementById(`rotate${axis.toUpperCase()}Range`).value = angle;
+                document.getElementById(`rotate${axis.toUpperCase()}Input`).value = angle;
+            }
+        }
+
+        ['X', 'Y', 'Z'].forEach(axis => {
+            document.getElementById(`rotate${axis}Range`).addEventListener('input', (event) => {
+                const angle = parseFloat(event.target.value);
+                updateRotation(axis.toLowerCase(), angle);
+            });
+
+            document.getElementById(`rotate${axis}Input`).addEventListener('input', (event) => {
+                const angle = parseFloat(event.target.value);
+                updateRotation(axis.toLowerCase(), angle);
+            });
         });
 
         document.getElementById('bgColor').addEventListener('input', (event) => {
