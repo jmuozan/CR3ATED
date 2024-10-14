@@ -3,22 +3,35 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Original with Subdivision Control</title>
+  <title>3D Viewer with Color and Wireframe Controls</title>
   <style>
     body { margin: 0; overflow: hidden; }
     #controls { position: absolute; top: 10px; left: 10px; z-index: 100; }
+    #color-controls { position: absolute; top: 10px; right: 10px; z-index: 100; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 5px; }
     canvas { display: block; }
   </style>
 </head>
 <body>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/exporters/STLExporter.js"></script> <!-- STLExporter -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script> <!-- OrbitControls -->
 
   <div id="controls">
     <label for="subdivisionsRange">Subdivisions: <span id="subdivisionsValue">12</span></label>
     <input type="range" id="subdivisionsRange" min="3" max="32" step="1" value="12">
     <br>
     <button onclick="exportSTL()">Export .stl</button>
+  </div>
+
+  <div id="color-controls">
+    <label for="bgColor">Background Color: </label>
+    <input type="color" id="bgColor" value="#ffffff">
+    <br>
+    <label for="lineColor">Line Color: </label>
+    <input type="color" id="lineColor" value="#000000">
+    <br>
+    <label for="shapeColor">Shape Color: </label>
+    <input type="color" id="shapeColor" value="#0077ff">
   </div>
 
   <script>
@@ -28,136 +41,127 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // Original set of points
-    const pointsData = [
-  {
-    "x": 746,
-    "y": 165
-  },
-  {
-    "x": 732.5913696289062,
-    "y": 186.03660583496094
-  },
-  {
-    "x": 720.5792846679688,
-    "y": 207.90045166015625
-  },
-  {
-    "x": 710.0501708984375,
-    "y": 230.515625
-  },
-  {
-    "x": 701.0773315429688,
-    "y": 253.79197692871094
-  },
-  {
-    "x": 693.7193603515625,
-    "y": 277.6280822753906
-  },
-  {
-    "x": 688.01904296875,
-    "y": 301.91400146484375
-  },
-  {
-    "x": 684.003662109375,
-    "y": 326.53460693359375
-  },
-  {
-    "x": 681.686279296875,
-    "y": 351.3727111816406
-  },
-  {
-    "x": 681.0695190429688,
-    "y": 376.3110656738281
-  },
-  {
-    "x": 682.1474609375,
-    "y": 401.2338562011719
-  },
-  {
-    "x": 684.91015625,
-    "y": 426.0264587402344
-  },
-  {
-    "x": 689.347412109375,
-    "y": 450.5747375488281
-  },
-  {
-    "x": 695.4522705078125,
-    "y": 474.76214599609375
-  },
-  {
-    "x": 703.2247314453125,
-    "y": 498.46588134765625
-  },
-  {
-    "x": 712.6752319335938,
-    "y": 521.5516357421875
-  },
-  {
-    "x": 723.8282470703125,
-    "y": 543.8641357421875
-  },
-  {
-    "x": 736.7247314453125,
-    "y": 565.215087890625
-  },
-  {
-    "x": 751.423828125,
-    "y": 585.3658447265625
-  },
-  {
-    "x": 768,
-    "y": 604
-  }
-];
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
 
-    // Convert points to THREE.Vector2
+    const pointsData = [
+      { "x": 1096, "y": 154 },
+      { "x": 1065.1490478515625, "y": 178.56747436523438 },
+      { "x": 1033.9317626953125, "y": 202.66770935058594 },
+      { "x": 1002.3198852539062, "y": 226.24794006347656 },
+      { "x": 970.2820434570312, "y": 249.24571228027344 },
+      { "x": 937.7821655273438, "y": 271.58563232421875 },
+      { "x": 904.77978515625, "y": 293.1758728027344 },
+      { "x": 871.2286987304688, "y": 313.90252685546875 },
+      { "x": 837.0769653320312, "y": 333.6228942871094 },
+      { "x": 802.26611328125, "y": 352.1539001464844 },
+      { "x": 766.7324829101562, "y": 369.25616455078125 },
+      { "x": 730.4107055664062, "y": 384.60968017578125 },
+      { "x": 693.2427978515625, "y": 397.77581787109375 },
+      { "x": 655.2020263671875, "y": 408.1378173828125 },
+      { "x": 616.3524169921875, "y": 414.81097412109375 },
+      { "x": 576.9863891601562, "y": 416.5262451171875 },
+      { "x": 537.9255981445312, "y": 411.56121826171875 },
+      { "x": 500.99212646484375, "y": 398.03350830078125 },
+      { "x": 469.11187744140625, "y": 375.05023193359375 },
+      { "x": 445.0000915527344, "y": 344.0001525878906 }
+    ];
+
     const points = pointsData.map(p => new THREE.Vector2(p.x, p.y));
 
-    // Initial parameters
-    let subdivisions = 12; // Initial number of subdivisions
+    let subdivisions = 12;
 
-    // Create the initial lathe geometry and mesh
+    // Two separate materials for solid and wireframe
+    const solidMaterial = new THREE.MeshPhongMaterial({ color: 0x0077ff });
+    const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
+
     let latheGeometry = new THREE.LatheGeometry(points, subdivisions);
-    const material = new THREE.MeshBasicMaterial({ color: 0x0077ff, wireframe: true });
-    let latheMesh = new THREE.Mesh(latheGeometry, material);
-    scene.add(latheMesh);
+    let solidMesh = new THREE.Mesh(latheGeometry, solidMaterial);
+    let wireframeMesh = new THREE.Mesh(latheGeometry, wireframeMaterial);
 
-    camera.position.z = 1500;
+    scene.add(solidMesh);
+    scene.add(wireframeMesh);
+
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(0, 1, 1).normalize();
+    scene.add(light);
+
+    adjustCameraToObject(solidMesh);
+
+    renderer.setClearColor(0xffffff); // Default background color
 
     function animate() {
       requestAnimationFrame(animate);
-      latheMesh.rotation.y += 0.01;
+      solidMesh.rotation.y += 0.01; // Continuous rotation for both meshes
+      wireframeMesh.rotation.y += 0.01;
+      controls.update();
       renderer.render(scene, camera);
     }
     animate();
 
-    // Adjust scene and camera on window resize
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // Function to update the geometry
     function updateGeometry() {
-      scene.remove(latheMesh);
+      scene.remove(solidMesh);
+      scene.remove(wireframeMesh);
+
       latheGeometry = new THREE.LatheGeometry(points, subdivisions);
-      latheMesh = new THREE.Mesh(latheGeometry, material);
-      scene.add(latheMesh);
+      solidMesh = new THREE.Mesh(latheGeometry, solidMaterial);
+      wireframeMesh = new THREE.Mesh(latheGeometry, wireframeMaterial);
+
+      scene.add(solidMesh);
+      scene.add(wireframeMesh);
+
+      adjustCameraToObject(solidMesh);
     }
 
-    // Listen to slider changes
+    function adjustCameraToObject(object) {
+      const box = new THREE.Box3().setFromObject(object);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const fov = THREE.MathUtils.degToRad(camera.fov);
+      const cameraZ = maxDim / (2 * Math.tan(fov / 2));
+      camera.position.set(center.x, center.y, cameraZ * 1.5);
+
+      controls.target.copy(center);
+      controls.update();
+
+      camera.far = cameraZ * 3;
+      camera.updateProjectionMatrix();
+    }
+
     document.getElementById('subdivisionsRange').addEventListener('input', (event) => {
       subdivisions = parseInt(event.target.value);
       document.getElementById('subdivisionsValue').textContent = subdivisions;
       updateGeometry();
     });
 
+    // Color change listeners
+    document.getElementById('bgColor').addEventListener('input', (event) => {
+      const color = event.target.value;
+      renderer.setClearColor(color);
+    });
+
+    document.getElementById('lineColor').addEventListener('input', (event) => {
+      const color = event.target.value;
+      wireframeMaterial.color.set(color);
+    });
+
+    document.getElementById('shapeColor').addEventListener('input', (event) => {
+      const color = event.target.value;
+      solidMaterial.color.set(color);
+    });
+
     function exportSTL() {
       const exporter = new THREE.STLExporter();
-      const stlData = exporter.parse(latheMesh);
+      const stlData = exporter.parse(solidMesh); // Exporting solid mesh
       const blob = new Blob([stlData], { type: 'text/plain' });
       const link = document.createElement('a');
       link.style.display = 'none';
