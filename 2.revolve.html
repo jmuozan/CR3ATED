@@ -24,7 +24,7 @@
 </head>
 <body>
     <div id="interface">
-        <h1>Draw profile to 3D revolution</h1>
+        <h1>SVG Path Points Extractor & 3D Viewer</h1>
         <input type="file" id="fileInput" accept=".svg"/>
         <input type="number" id="pointCount" placeholder="Number of Points" min="1" value="5"/>
         <button id="extractButton">Extract & Visualize</button>
@@ -120,12 +120,24 @@
             reader.readAsText(file);
         });
 
-        const light = new THREE.DirectionalLight(0xffffff, 1);
-        light.position.set(0, 1, 1).normalize();
-        scene.add(light);
+        // Original front light
+        const frontLight = new THREE.DirectionalLight(0xffffff, 1.3);
+        frontLight.position.set(0, 0.6, 1).normalize();
+        scene.add(frontLight);
+
+        // Add a light from behind the object for balanced illumination
+        const backLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        backLight.position.set(0, -0.3, -0.4).normalize();
+        scene.add(backLight);
+
+        // Additional spot light for focus from the top
+        const topLight = new THREE.SpotLight(0xffffff, 1);
+        topLight.position.set(0, 4, 0);
+        topLight.castShadow = true;
+        scene.add(topLight);
 
         function resetCamera() {
-            if(solidMesh) adjustCameraToObject(solidMesh);
+            if (solidMesh) adjustCameraToObject(solidMesh);
         }
 
         function animate() {
@@ -142,7 +154,7 @@
         });
 
         function updateGeometry(points) {
-            if(solidMesh && wireframeMesh) {
+            if (solidMesh && wireframeMesh) {
                 scene.remove(solidMesh, wireframeMesh);
             }
 
@@ -184,20 +196,20 @@
         document.getElementById('subdivisionsRange').addEventListener('input', (event) => {
             subdivisions = parseInt(event.target.value);
             document.getElementById('subdivisionsValue').textContent = subdivisions;
-            if(solidMesh) updateGeometry(solidMesh.geometry.parameters.points);
+            if (solidMesh) updateGeometry(solidMesh.geometry.parameters.points);
         });
 
         document.getElementById('scaleRange').addEventListener('input', (event) => {
             scale = parseFloat(event.target.value);
             document.getElementById('scaleValue').textContent = scale.toFixed(1);
-            if(solidMesh && wireframeMesh) {
+            if (solidMesh && wireframeMesh) {
                 solidMesh.scale.set(scale, scale, scale);
                 wireframeMesh.scale.set(scale, scale, scale);
             }
         });
 
         function updateRotation(axis, angle) {
-            if(solidMesh && wireframeMesh) {
+            if (solidMesh && wireframeMesh) {
                 const radians = THREE.MathUtils.degToRad(angle);
                 solidMesh.rotation[axis] = radians;
                 wireframeMesh.rotation[axis] = radians;
@@ -231,7 +243,7 @@
         });
 
         function exportSTL() {
-            if(!solidMesh) return;
+            if (!solidMesh) return;
             const exporter = new THREE.STLExporter();
             const stlData = exporter.parse(solidMesh);
             const blob = new Blob([stlData], { type: 'text/plain' });
