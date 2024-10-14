@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>MediaPipe Hands</title>
+  <title>MediaPipe Hands Drawing</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.2/css/bulma.min.css">
   <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.1/control_utils.css" crossorigin="anonymous">
   <link rel="stylesheet" type="text/css" href="demo.css" crossorigin="anonymous">
@@ -15,18 +15,30 @@
       display: none;
     }
 
-    .output3 {
-      max-width: 100%;
-      height: auto;
+    .output3, .draw-canvas {
+      max-width: 640px;
+      height: 480px;
       display: block;
+      border: 2px solid black; /* A border around the camera and drawing canvases */
     }
 
     .full-screen-container {
       display: flex;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
       width: 100vw;
       height: 100vh;
+    }
+
+    .canvas-container {
+      display: flex;
+      justify-content: space-around;
+      width: 100%;
+    }
+
+    .clear-button-container {
+      margin-top: 20px;
     }
   </style>
 </head>
@@ -34,14 +46,12 @@
   <!-- BULMA NAVBAR -->
   <nav class="navbar" role="navigation" aria-label="main navigation">
     <div class="navbar-brand">
-
       <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
         <span aria-hidden="true"></span>
         <span aria-hidden="true"></span>
         <span aria-hidden="true"></span>
       </a>
     </div>
-
     <div id="navbarBasicExample" class="navbar-menu">
       <div class="navbar-start">
         <a class="navbar-item" href="face.html">Face</a>
@@ -50,9 +60,20 @@
   </nav>
 
   <div class="full-screen-container">
-    <canvas class="output3" width="640px" height="480px"></canvas>
-  </div>
+    <div class="canvas-container">
+      <!-- Display camera feed -->
+      <canvas class="output3" width="640px" height="480px"></canvas>
 
+      <!-- Drawing canvas on the right -->
+      <canvas class="draw-canvas" width="640px" height="480px"></canvas>
+    </div>
+
+    <!-- Clear Canvas Button -->
+    <div class="clear-button-container">
+      <button class="button is-danger" onclick="clearDrawingCanvas()">Clear Canvas</button>
+    </div>
+  </div>
+  
   <video class="input_video3"></video>
 
   <script type="text/javascript">
@@ -60,46 +81,100 @@
     const out3 = document.getElementsByClassName('output3')[0];
     const canvasCtx3 = out3.getContext('2d');
 
-    // Define the color sets for each hand
-    const handColors = [
-      {color: '#55EB17', fillColor: '#AB3CA2'}, 
-      {color: '#EAE01D', fillColor: '#6317EB'}  
-    ];
+    const drawCanvas = document.getElementsByClassName('draw-canvas')[0];
+    const drawCtx = drawCanvas.getContext('2d');
+
+    let prevX = null, prevY = null;
+    let isDrawing = true;  // Drawing mode "on" all the time
+
+    const movementThreshold = 10;  // Minimum distance to generate a line segment (measured in pixels)
+    const smoothingFactor = 0.05;   // Degree of smoothing for finger movement
+
+    // Utility function to compute the Euclidean distance between two points
+    function calculateDistance(x1, y1, x2, y2) {
+      return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
+    }
+
+    // Helper function to apply smoothing between old and new positions
+    function smoothPosition(prevValue, newValue, factor) {
+      return prevValue * (1 - factor) + newValue * factor;
+    }
 
     function onResultsHands(results) {
+      // Clear the camera output canvas for the next frame
       canvasCtx3.save();
       canvasCtx3.clearRect(0, 0, out3.width, out3.height);
       canvasCtx3.drawImage(results.image, 0, 0, out3.width, out3.height);
 
-      if (results.multiHandLandmarks && results.multiHandedness) {
-        results.multiHandLandmarks.forEach((landmarks, index) => {
-          // Cycle through the color sets
-          const colorSet = handColors[index % handColors.length];
-          drawConnectors(canvasCtx3, landmarks, HAND_CONNECTIONS, {color: colorSet.color});
-          drawLandmarks(canvasCtx3, landmarks, {
-            color: colorSet.color,
-            fillColor: colorSet.fillColor,
-            radius: 5 
-          });
-        });
+      // Check if hands and landmarks are detected
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        // Choose only the first hand in the list of detected hands.
+        const landmarks = results.multiHandLandmarks[0]; // We only focus on the first hand
+
+        // Get the index finger tip (landmark 8)
+        const fingerTip = landmarks[8];
+
+        // Convert normalized coordinates to canvas dimensions
+        const x = fingerTip.x * drawCanvas.width;
+        const y = fingerTip.y * drawCanvas.height;
+
+        // Handle drawing with smoothed coordinates
+        if (isDrawing) {
+          // Check if we have the previous coordinates
+          if (prevX != null && prevY != null) {
+            const smoothX = smoothPosition(prevX, x, smoothingFactor);
+            const smoothY = smoothPosition(prevY, y, smoothingFactor);
+
+            // Only draw if movement distance exceeds threshold
+            if (calculateDistance(prevX, prevY, x, y) > movementThreshold) {
+              drawCtx.beginPath();
+              drawCtx.moveTo(prevX, prevY);
+              drawCtx.lineTo(smoothX, smoothY);
+              drawCtx.strokeStyle = "black";  // Line color is set to black
+              drawCtx.lineWidth = 3;          // Line thickness
+              drawCtx.stroke();
+            }
+
+            // Update previous position for next frame
+            prevX = smoothX;
+            prevY = smoothY;
+          } else {
+            // Initialize previous coordinates
+            prevX = x;
+            prevY = y;
+          }
+        }
+      } else {
+        // If no hands are detected or if hand leaves the screen, reset the previous coordinates
+        prevX = null;
+        prevY = null;
       }
 
+      // Restore the 2D canvas context
       canvasCtx3.restore();
+
+      // Always draw a rectangle boundary around the drawing area
+      drawCtx.strokeStyle = "black";
+      drawCtx.lineWidth = 2;
+      drawCtx.strokeRect(0, 0, drawCanvas.width, drawCanvas.height);
     }
 
+    // Initiate MediaPipe Hands solution and set options
     const hands = new Hands({locateFile: (file) => {
       return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.1/${file}`;
     }});
 
     hands.setOptions({
       selfieMode: true,
-      maxNumHands: 2,
+      maxNumHands: 2,  // We allow detection of up to 2 hands, but only use the first one
       minDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5
     });
 
+    // Set up the hands detection event handling
     hands.onResults(onResultsHands);
 
+    // Start camera input
     if (video3) {
       const camera = new Camera(video3, {
         onFrame: async () => {
@@ -110,8 +185,14 @@
       });
       camera.start();
     } else {
-      console.error("Failed to acquire camera feed: video element not found");
+      console.log("Camera not found");
     }
+
+    // Function to clear the drawing canvas
+    function clearDrawingCanvas() {
+      drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    }
+
   </script>
 </body>
 </html>
