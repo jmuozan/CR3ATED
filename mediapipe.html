@@ -40,6 +40,10 @@
     .clear-button-container {
       margin-top: 20px;
     }
+
+    .button-container {
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -68,9 +72,10 @@
       <canvas class="draw-canvas" width="640px" height="480px"></canvas>
     </div>
 
-    <!-- Clear Canvas Button -->
-    <div class="clear-button-container">
+    <!-- Clear Canvas and Download Image Buttons -->
+    <div class="button-container">
       <button class="button is-danger" onclick="clearDrawingCanvas()">Clear Canvas</button>
+      <button class="button is-primary" onclick="downloadCanvasAsImage()">Download PNG</button>
     </div>
   </div>
   
@@ -85,93 +90,111 @@
     const drawCtx = drawCanvas.getContext('2d');
 
     let prevX = null, prevY = null;
-    let isDrawing = true;  // Drawing mode "on" all the time
+    let isDrawing = false;  // Initially set to false, only draws on demand
 
     const movementThreshold = 10;  // Minimum distance to generate a line segment (measured in pixels)
-    const smoothingFactor = 0.05;   // Degree of smoothing for finger movement
+    const smoothingFactor = 0.2;   // For smoothing hand movements
+    const fingerCloseThreshold = 0.05;  // Threshold for finger proximity to trigger toggle
 
-    // Utility function to compute the Euclidean distance between two points
-    function calculateDistance(x1, y1, x2, y2) {
-      return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
+    // Utility function to compute the Euclidean distance between two 3D points
+    function calculateDistance3D(x1, y1, z1, x2, y2, z2) {
+      return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2);
     }
 
-    // Helper function to apply smoothing between old and new positions
+    // Helper function to apply movement smoothing
     function smoothPosition(prevValue, newValue, factor) {
       return prevValue * (1 - factor) + newValue * factor;
     }
 
     function onResultsHands(results) {
-      // Clear the camera output canvas for the next frame
+      // Clear the camera output pane
       canvasCtx3.save();
       canvasCtx3.clearRect(0, 0, out3.width, out3.height);
       canvasCtx3.drawImage(results.image, 0, 0, out3.width, out3.height);
 
-      // Check if hands and landmarks are detected
+      // Check if any hand landmarks are detected
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        // Choose only the first hand in the list of detected hands.
-        const landmarks = results.multiHandLandmarks[0]; // We only focus on the first hand
+        // Focus on the first hand
+        const landmarks = results.multiHandLandmarks[0];
 
-        // Get the index finger tip (landmark 8)
+        // Get the index finger tip (landmark 8) and middle finger tip (landmark 12)
         const fingerTip = landmarks[8];
+        const middleTip = landmarks[12];
 
-        // Convert normalized coordinates to canvas dimensions
+        // Convert normalized coordinates to canvas dimensions for the index finger
         const x = fingerTip.x * drawCanvas.width;
         const y = fingerTip.y * drawCanvas.height;
 
-        // Handle drawing with smoothed coordinates
+        // Process proximity between the index finger tip (landmark 8) and middle finger tip (landmark 12)
+        const handDistance = calculateDistance3D(
+          fingerTip.x, fingerTip.y, fingerTip.z,
+          middleTip.x, middleTip.y, middleTip.z
+        );
+
+        // If the distance between finger 8 and 12 is below the threshold, toggle drawing mode
+        if (handDistance < fingerCloseThreshold) {
+          isDrawing = false;
+        } else {
+          isDrawing = true;
+        }
+
+        // If in drawing mode, process and draw on the canvas
         if (isDrawing) {
-          // Check if we have the previous coordinates
           if (prevX != null && prevY != null) {
             const smoothX = smoothPosition(prevX, x, smoothingFactor);
             const smoothY = smoothPosition(prevY, y, smoothingFactor);
 
-            // Only draw if movement distance exceeds threshold
-            if (calculateDistance(prevX, prevY, x, y) > movementThreshold) {
+            // Draw only if finger movement exceeds a threshold
+            if (calculateDistance3D(prevX, prevY, 0, x, y, 0) > movementThreshold) {
               drawCtx.beginPath();
               drawCtx.moveTo(prevX, prevY);
               drawCtx.lineTo(smoothX, smoothY);
-              drawCtx.strokeStyle = "black";  // Line color is set to black
+              drawCtx.strokeStyle = "black";  // Black color for drawing
               drawCtx.lineWidth = 3;          // Line thickness
               drawCtx.stroke();
             }
 
-            // Update previous position for next frame
+            // Update previous position with new smoothed position
             prevX = smoothX;
             prevY = smoothY;
           } else {
-            // Initialize previous coordinates
+            // Initialize position for the first frame
             prevX = x;
             prevY = y;
           }
+        } else {
+          // If not drawing, reset previous coordinates
+          prevX = null;
+          prevY = null;
         }
       } else {
-        // If no hands are detected or if hand leaves the screen, reset the previous coordinates
+        // Reset previous coordinates if no hand is detected
         prevX = null;
         prevY = null;
       }
 
-      // Restore the 2D canvas context
+      // Restore the camera output context
       canvasCtx3.restore();
 
-      // Always draw a rectangle boundary around the drawing area
+      // Draw a border around the drawing area
       drawCtx.strokeStyle = "black";
       drawCtx.lineWidth = 2;
       drawCtx.strokeRect(0, 0, drawCanvas.width, drawCanvas.height);
     }
 
-    // Initiate MediaPipe Hands solution and set options
-    const hands = new Hands({locateFile: (file) => {
-      return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.1/${file}`;
-    }});
+    // Initialize MediaPipe Hands solution and set options
+    const hands = new Hands({ locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.1/${file}`;
+      }
+    });
 
     hands.setOptions({
       selfieMode: true,
-      maxNumHands: 2,  // We allow detection of up to 2 hands, but only use the first one
+      maxNumHands: 2,  // Allow up to two hands, but we follow only one
       minDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5
     });
 
-    // Set up the hands detection event handling
     hands.onResults(onResultsHands);
 
     // Start camera input
@@ -185,12 +208,23 @@
       });
       camera.start();
     } else {
-      console.log("Camera not found");
+      console.error("Camera not found");
     }
 
-    // Function to clear the drawing canvas
+    // Function to clear the current drawing on the canvas
     function clearDrawingCanvas() {
       drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    }
+
+    // Function to download the canvas content as a PNG file
+    function downloadCanvasAsImage() {
+      const image = drawCanvas.toDataURL("image/png");
+      const link = document.createElement('a');
+      link.href = image;
+      link.download = 'drawing.png'; // Name of the downloaded image
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
 
   </script>

@@ -2,6 +2,8 @@
 
 - [X] VECTOR TO 3D
 - [ ] Dimensions of the piece
-- [ ] Mediapipe drawing
+- [X] Mediapipe drawing
+- [ ] Tolerances drawing
+- [ ] Tolerances vectorizing
 - [ ] Drawing to vector
 - [ ] ML gestures for modifications
