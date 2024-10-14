@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Viewer with Color and Wireframe Controls</title>
+  <title>3D Viewer with Camera Reset and Scaling</title>
   <style>
     body { margin: 0; overflow: hidden; }
     #controls { position: absolute; top: 10px; left: 10px; z-index: 100; }
@@ -19,6 +19,11 @@
   <div id="controls">
     <label for="subdivisionsRange">Subdivisions: <span id="subdivisionsValue">12</span></label>
     <input type="range" id="subdivisionsRange" min="3" max="32" step="1" value="12">
+    <br>
+    <label for="scaleRange">Scale: <span id="scaleValue">1.0</span></label>
+    <input type="range" id="scaleRange" min="0.1" max="10" step="0.1" value="1.0">
+    <br>
+    <button onclick="resetCamera()">Reset Camera</button>
     <br>
     <button onclick="exportSTL()">Export .stl</button>
   </div>
@@ -71,14 +76,17 @@
     const points = pointsData.map(p => new THREE.Vector2(p.x, p.y));
 
     let subdivisions = 12;
+    let scale = 1.0;  // Initial scale
 
-    // Two separate materials for solid and wireframe
     const solidMaterial = new THREE.MeshPhongMaterial({ color: 0x0077ff });
     const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
 
     let latheGeometry = new THREE.LatheGeometry(points, subdivisions);
     let solidMesh = new THREE.Mesh(latheGeometry, solidMaterial);
     let wireframeMesh = new THREE.Mesh(latheGeometry, wireframeMaterial);
+
+    solidMesh.scale.set(scale, scale, scale);  // Apply initial scale
+    wireframeMesh.scale.set(scale, scale, scale);
 
     scene.add(solidMesh);
     scene.add(wireframeMesh);
@@ -87,13 +95,17 @@
     light.position.set(0, 1, 1).normalize();
     scene.add(light);
 
+    function resetCamera() {
+      adjustCameraToObject(solidMesh);
+    }
+
     adjustCameraToObject(solidMesh);
 
-    renderer.setClearColor(0xffffff); // Default background color
+    renderer.setClearColor(0xffffff);
 
     function animate() {
       requestAnimationFrame(animate);
-      solidMesh.rotation.y += 0.01; // Continuous rotation for both meshes
+      solidMesh.rotation.y += 0.01;
       wireframeMesh.rotation.y += 0.01;
       controls.update();
       renderer.render(scene, camera);
@@ -113,6 +125,9 @@
       latheGeometry = new THREE.LatheGeometry(points, subdivisions);
       solidMesh = new THREE.Mesh(latheGeometry, solidMaterial);
       wireframeMesh = new THREE.Mesh(latheGeometry, wireframeMaterial);
+
+      solidMesh.scale.set(scale, scale, scale);  // Apply scale to new meshes
+      wireframeMesh.scale.set(scale, scale, scale);
 
       scene.add(solidMesh);
       scene.add(wireframeMesh);
@@ -137,10 +152,19 @@
       camera.updateProjectionMatrix();
     }
 
+    // Subdivisions range listener
     document.getElementById('subdivisionsRange').addEventListener('input', (event) => {
       subdivisions = parseInt(event.target.value);
       document.getElementById('subdivisionsValue').textContent = subdivisions;
       updateGeometry();
+    });
+
+    // Scale range listener
+    document.getElementById('scaleRange').addEventListener('input', (event) => {
+      scale = parseFloat(event.target.value);
+      document.getElementById('scaleValue').textContent = scale.toFixed(1);
+      solidMesh.scale.set(scale, scale, scale);
+      wireframeMesh.scale.set(scale, scale, scale);
     });
 
     // Color change listeners
@@ -161,7 +185,7 @@
 
     function exportSTL() {
       const exporter = new THREE.STLExporter();
-      const stlData = exporter.parse(solidMesh); // Exporting solid mesh
+      const stlData = exporter.parse(solidMesh);
       const blob = new Blob([stlData], { type: 'text/plain' });
       const link = document.createElement('a');
       link.style.display = 'none';
