@@ -5,5 +5,5 @@
 - [X] Mediapipe drawing
 - [ ] Tolerances drawing
 - [ ] Tolerances vectorizing
-- [ ] Drawing to vector
+- [X] Drawing to vector
 - [ ] ML gestures for modifications
