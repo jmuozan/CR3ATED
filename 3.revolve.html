@@ -31,9 +31,14 @@
         <label for="scaleRange">Scale: <span id="scaleValue">1.0</span></label>
         <input type="range" id="scaleRange" min="0.1" max="10" step="0.1" value="1.0">
         <br>
-        <label for="xOffset">X Offset: </label>
-        <input type="number" id="xOffset" value="0" style="width: 60px;">
-        <button onclick="applyXOffset()">Apply</button>
+        <label for="xOffsetRange">X Offset: <span id="xOffsetValue">0</span></label>
+        <input type="range" id="xOffsetRange" min="-300" max="300" step="50" value="0"> <!-- Step changed here -->
+        <br>
+        <label for="samplesRange">Number of Samples: <span id="samplesValue">20</span></label>
+        <input type="range" id="samplesRange" min="3" max="100" step="1" value="20">
+        <br>
+        <label for="svgFile">Upload SVG:</label>
+        <input type="file" id="svgFile" accept=".svg">
         <br>
         <button onclick="resetCamera()">Reset Camera</button>
         <button onclick="exportSTL()">Export .stl</button>
@@ -65,30 +70,24 @@
 
         let subdivisions = 12;
         let scale = 1.0;  // Initial scale
+        let xOffset = 0;
+        let points = [];  // Will hold dynamic points extracted from SVG
         let solidMesh, wireframeMesh;
+        let numberOfSamples = 20;  // Initial number of samples
+
         const solidMaterial = new THREE.MeshPhongMaterial({ color: 0x0077ff });
         const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
 
-        // Array of points (previously extracted from SVG)
-        const pointsData = [
-            { "x": 809, "y": 160 },
-            { "x": 945.9096069335938, "y": 306.2921142578125 },
-            { "x": 990.1112060546875, "y": 494.57012939453125 },
-            { "x": 849, "y": 637 }
-        ];
+        let storedPath = null;  // Store original path data of the SVG
 
-        // Transform the pointsData into THREE.Vector2
-        const points = pointsData.map(p => new THREE.Vector2(p.x, p.y));
-
-        // Initial setup of geometry
-        updateGeometry(points);
+        document.getElementById('svgFile').addEventListener('change', parseSVGFile);
 
         const light = new THREE.DirectionalLight(0xffffff, 1);
         light.position.set(0, 1, 1).normalize();
         scene.add(light);
 
         function resetCamera() {
-            if(solidMesh) adjustCameraToObject(solidMesh);
+            if (solidMesh) adjustCameraToObject(solidMesh);
         }
 
         function animate() {
@@ -100,6 +99,7 @@
             controls.update();
             renderer.render(scene, camera);
         }
+
         animate();
 
         window.addEventListener('resize', () => {
@@ -108,12 +108,14 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        function updateGeometry(points) {
-            if(solidMesh && wireframeMesh) {
+        function updateGeometry() {
+            if (solidMesh && wireframeMesh) {
                 scene.remove(solidMesh, wireframeMesh);
             }
 
-            const latheGeometry = new THREE.LatheGeometry(points, subdivisions);
+            const updatedPoints = points.map(p => new THREE.Vector2(p.x + xOffset, p.y));  // Apply X Offset
+
+            const latheGeometry = new THREE.LatheGeometry(updatedPoints, subdivisions);
             solidMesh = new THREE.Mesh(latheGeometry, solidMaterial);
             wireframeMesh = new THREE.Mesh(latheGeometry, wireframeMaterial);
 
@@ -144,7 +146,7 @@
         document.getElementById('subdivisionsRange').addEventListener('input', (event) => {
             subdivisions = parseInt(event.target.value);
             document.getElementById('subdivisionsValue').textContent = subdivisions;
-            if (solidMesh) updateGeometry(points);  // Recreate geometry with updated subdivisions
+            updateGeometry();  // Recreate geometry with updated subdivisions
         });
 
         document.getElementById('scaleRange').addEventListener('input', (event) => {
@@ -168,14 +170,26 @@
             solidMaterial.color.set(event.target.value);
         });
 
-        // Apply the X offset to all points
+        // X Offset slider change event listener
+        document.getElementById('xOffsetRange').addEventListener('input', applyXOffset);
+
         function applyXOffset() {
-            const xOffset = parseFloat(document.getElementById('xOffset').value);
-            points.forEach(p => {
-                p.x = p.x + xOffset;
-            });
-            updateGeometry(points);
+            const xOffsetValue = parseFloat(document.getElementById('xOffsetRange').value);
+            xOffset = xOffsetValue;  // Update the global X offset
+            document.getElementById('xOffsetValue').textContent = xOffset;  // Update the visible label
+            updateGeometry();  // Apply X offset updates to the geometry
         }
+
+        document.getElementById('samplesRange').addEventListener('input', (event) => {
+            numberOfSamples = parseInt(event.target.value);
+            document.getElementById('samplesValue').textContent = numberOfSamples;
+
+            if (storedPath) {
+                // If SVG was already parsed, recalculate points based on new numberOfSamples
+                calculateSVGPointsFromPath(storedPath, numberOfSamples);
+                updateGeometry();  // Recreate geometry with updated points
+            }
+        });
 
         function exportSTL() {
             if (!solidMesh) return;
@@ -190,6 +204,44 @@
             link.click();
             document.body.removeChild(link);
         }
+
+        // Parse SVG file and extract points from path data
+        function parseSVGFile(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(e.target.result, 'image/svg+xml');
+                    const pathElement = xmlDoc.querySelector('path'); // Assuming we are only dealing with path elements
+                    if (pathElement) {
+                        const dAttr = pathElement.getAttribute('d');
+                        storedPath = dAttr;  // Store the d attribute so we can recalculate later
+
+                        // Calculate the points based on the initial numberOfSamples
+                        calculateSVGPointsFromPath(dAttr, numberOfSamples);
+                        updateGeometry();  // Update the 3D model
+                    } else {
+                        alert("No valid <path> element found in the SVG.");
+                    }
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        // Calculate points from the SVG path's 'd' attribute with the specified number of samples
+        function calculateSVGPointsFromPath(d, numSamples) {
+            const svgPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            svgPath.setAttribute('d', d);
+
+            const totalLength = svgPath.getTotalLength();
+            points = [];
+            for (let i = 0; i <= numSamples; i++) {
+                const point = svgPath.getPointAtLength((i / numSamples) * totalLength);
+                points.push(new THREE.Vector2(point.x, point.y));
+            }
+        }
+
     </script>
 </body>
 </html>
