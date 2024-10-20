@@ -1,62 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lathe Geometry Viewer</title>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            font-family: Arial, sans-serif;
-        }
-        #interface {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            z-index: 100;
-            background: rgba(255, 255, 255, 0.8);  /* White background with slight transparency */
-            padding: 10px;
-            border-radius: 5px;
-        }
-        canvas { display: block; }
-    </style>
-</head>
-<body>
-    <div id="interface">
-        <h1>Lathe Geometry Generator</h1>
-        <label for="subdivisionsRange">Subdivisions: <span id="subdivisionsValue">12</span></label>
-        <input type="range" id="subdivisionsRange" min="3" max="32" step="1" value="12">
-        <br>
-        <label for="scaleRange">Scale: <span id="scaleValue">1.0</span></label>
-        <input type="range" id="scaleRange" min="0.1" max="10" step="0.1" value="1.0">
-        <br>
-        <label for="xOffset">X Offset: </label>
-        <input type="number" id="xOffset" value="0" style="width: 60px;">
-        <button onclick="applyXOffset()">Apply</button>
-        <br>
-        <button onclick="resetCamera()">Reset Camera</button>
-        <button onclick="exportSTL()">Export .stl</button>
-        <br><br>
-        <label for="bgColor">Background Color: </label>
-        <input type="color" id="bgColor" value="#ffffff">
-        <label for="lineColor">Line Color: </label>
-        <input type="color" id="lineColor" value="#000000">
-        <label for="shapeColor">Shape Color: </label>
-        <input type="color" id="shapeColor" value="#0077ff">
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/exporters/STLExporter.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
-
-    <script>
-        const scene = new THREE.Scene();
+const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
         const renderer = new THREE.WebGLRenderer();
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setClearColor(0xffffff);  // White background
-
         document.body.appendChild(renderer.domElement);
 
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -64,39 +9,74 @@
         controls.dampingFactor = 0.05;
 
         let subdivisions = 12;
-        let scale = 1.0;  // Initial scale
+        let scale = 1.0;
         let solidMesh, wireframeMesh;
         const solidMaterial = new THREE.MeshPhongMaterial({ color: 0x0077ff });
         const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
 
-        // Array of points (previously extracted from SVG)
-        const pointsData = [
-            { "x": 809, "y": 160 },
-            { "x": 945.9096069335938, "y": 306.2921142578125 },
-            { "x": 990.1112060546875, "y": 494.57012939453125 },
-            { "x": 849, "y": 637 }
-        ];
+        document.getElementById('extractButton').addEventListener('click', function() {
+            const fileInput = document.getElementById('fileInput');
+            const pointCountInput = document.getElementById('pointCount');
+            const file = fileInput.files[0];
+            const pointCount = parseInt(pointCountInput.value, 10);
 
-        // Transform the pointsData into THREE.Vector2
-        const points = pointsData.map(p => new THREE.Vector2(p.x, p.y));
+            if (!file) {
+                alert('Please upload an SVG file.');
+                return;
+            }
 
-        // Initial setup of geometry
-        updateGeometry(points);
+            if (isNaN(pointCount) || pointCount <= 0) {
+                alert('Please enter a valid number of points.');
+                return;
+            }
 
-        const light = new THREE.DirectionalLight(0xffffff, 1);
-        light.position.set(0, 1, 1).normalize();
-        scene.add(light);
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const parser = new DOMParser();
+                const svgDoc = parser.parseFromString(event.target.result, 'image/svg+xml');
+                const path = svgDoc.querySelector('path');
+                
+                if (!path) {
+                    alert('SVG must contain a <path> element.');
+                    return;
+                }
+
+                const pathLength = path.getTotalLength();
+                const pointsData = [];
+                
+                for (let i = 0; i < pointCount; i++) {
+                    const point = path.getPointAtLength((i / (pointCount - 1)) * pathLength);
+                    pointsData.push(new THREE.Vector2(point.x, point.y));
+                }
+
+                updateGeometry(pointsData);
+            };
+
+            reader.readAsText(file);
+        });
+
+        // Original front light
+        const frontLight = new THREE.DirectionalLight(0xffffff, 1.3);
+        frontLight.position.set(0, 0.6, 1).normalize();
+        scene.add(frontLight);
+
+        // Add a light from behind the object for balanced illumination
+        const backLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        backLight.position.set(0, -0.3, -0.4).normalize();
+        scene.add(backLight);
+
+        // Additional spot light for focus from the top
+        const topLight = new THREE.SpotLight(0xffffff, 1);
+        topLight.position.set(0, 2, 0);
+        topLight.castShadow = true;
+        scene.add(topLight);
 
         function resetCamera() {
-            if(solidMesh) adjustCameraToObject(solidMesh);
+            if (solidMesh) adjustCameraToObject(solidMesh);
         }
 
         function animate() {
             requestAnimationFrame(animate);
-            if (solidMesh && wireframeMesh) {
-                solidMesh.rotation.y += 0.01;
-                wireframeMesh.rotation.y += 0.01;
-            }
             controls.update();
             renderer.render(scene, camera);
         }
@@ -109,7 +89,7 @@
         });
 
         function updateGeometry(points) {
-            if(solidMesh && wireframeMesh) {
+            if (solidMesh && wireframeMesh) {
                 scene.remove(solidMesh, wireframeMesh);
             }
 
@@ -119,6 +99,13 @@
 
             solidMesh.scale.set(scale, scale, scale);
             wireframeMesh.scale.set(scale, scale, scale);
+
+            solidMesh.rotation.set(
+                THREE.MathUtils.degToRad(document.getElementById('rotateXRange').value),
+                THREE.MathUtils.degToRad(document.getElementById('rotateYRange').value),
+                THREE.MathUtils.degToRad(document.getElementById('rotateZRange').value)
+            );
+            wireframeMesh.rotation.copy(solidMesh.rotation);
 
             scene.add(solidMesh, wireframeMesh);
             adjustCameraToObject(solidMesh);
@@ -144,7 +131,7 @@
         document.getElementById('subdivisionsRange').addEventListener('input', (event) => {
             subdivisions = parseInt(event.target.value);
             document.getElementById('subdivisionsValue').textContent = subdivisions;
-            if (solidMesh) updateGeometry(points);  // Recreate geometry with updated subdivisions
+            if (solidMesh) updateGeometry(solidMesh.geometry.parameters.points);
         });
 
         document.getElementById('scaleRange').addEventListener('input', (event) => {
@@ -154,6 +141,28 @@
                 solidMesh.scale.set(scale, scale, scale);
                 wireframeMesh.scale.set(scale, scale, scale);
             }
+        });
+
+        function updateRotation(axis, angle) {
+            if (solidMesh && wireframeMesh) {
+                const radians = THREE.MathUtils.degToRad(angle);
+                solidMesh.rotation[axis] = radians;
+                wireframeMesh.rotation[axis] = radians;
+                document.getElementById(`rotate${axis.toUpperCase()}Range`).value = angle;
+                document.getElementById(`rotate${axis.toUpperCase()}Input`).value = angle;
+            }
+        }
+
+        ['X', 'Y', 'Z'].forEach(axis => {
+            document.getElementById(`rotate${axis}Range`).addEventListener('input', (event) => {
+                const angle = parseFloat(event.target.value);
+                updateRotation(axis.toLowerCase(), angle);
+            });
+
+            document.getElementById(`rotate${axis}Input`).addEventListener('input', (event) => {
+                const angle = parseFloat(event.target.value);
+                updateRotation(axis.toLowerCase(), angle);
+            });
         });
 
         document.getElementById('bgColor').addEventListener('input', (event) => {
@@ -168,15 +177,6 @@
             solidMaterial.color.set(event.target.value);
         });
 
-        // Apply the X offset to all points
-        function applyXOffset() {
-            const xOffset = parseFloat(document.getElementById('xOffset').value);
-            points.forEach(p => {
-                p.x = p.x + xOffset;
-            });
-            updateGeometry(points);
-        }
-
         function exportSTL() {
             if (!solidMesh) return;
             const exporter = new THREE.STLExporter();
@@ -188,8 +188,4 @@
             link.href = URL.createObjectURL(blob);
             link.download = 'latheShape.stl';
             link.click();
-            document.body.removeChild(link);
         }
-    </script>
-</body>
-</html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Combined SVG Path to 3D Viewer</title>
+    <title>Lathe Geometry Viewer</title>
     <style>
         body {
             margin: 0;
@@ -24,16 +24,16 @@
 </head>
 <body>
     <div id="interface">
-        <h1>SVG Path Points Extractor & 3D Viewer</h1>
-        <input type="file" id="fileInput" accept=".svg"/>
-        <input type="number" id="pointCount" placeholder="Number of Points" min="1" value="5"/>
-        <button id="extractButton">Extract & Visualize</button>
-        <br><br>
+        <h1>Lathe Geometry Generator</h1>
         <label for="subdivisionsRange">Subdivisions: <span id="subdivisionsValue">12</span></label>
         <input type="range" id="subdivisionsRange" min="3" max="32" step="1" value="12">
         <br>
         <label for="scaleRange">Scale: <span id="scaleValue">1.0</span></label>
         <input type="range" id="scaleRange" min="0.1" max="10" step="0.1" value="1.0">
+        <br>
+        <label for="xOffset">X Offset: </label>
+        <input type="number" id="xOffset" value="0" style="width: 60px;">
+        <button onclick="applyXOffset()">Apply</button>
         <br>
         <button onclick="resetCamera()">Reset Camera</button>
         <button onclick="exportSTL()">Export .stl</button>
@@ -67,46 +67,19 @@
         const solidMaterial = new THREE.MeshPhongMaterial({ color: 0x0077ff });
         const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
 
-        document.getElementById('extractButton').addEventListener('click', function() {
-            const fileInput = document.getElementById('fileInput');
-            const pointCountInput = document.getElementById('pointCount');
-            const file = fileInput.files[0];
-            const pointCount = parseInt(pointCountInput.value, 10);
+        // Array of points (previously extracted from SVG)
+        const pointsData = [
+            { "x": 809, "y": 160 },
+            { "x": 945.9096069335938, "y": 306.2921142578125 },
+            { "x": 990.1112060546875, "y": 494.57012939453125 },
+            { "x": 849, "y": 637 }
+        ];
 
-            if (!file) {
-                alert('Please upload an SVG file.');
-                return;
-            }
+        // Transform the pointsData into THREE.Vector2
+        const points = pointsData.map(p => new THREE.Vector2(p.x, p.y));
 
-            if (isNaN(pointCount) || pointCount <= 0) {
-                alert('Please enter a valid number of points.');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const parser = new DOMParser();
-                const svgDoc = parser.parseFromString(event.target.result, 'image/svg+xml');
-                const path = svgDoc.querySelector('path');
-                
-                if (!path) {
-                    alert('SVG must contain a <path> element.');
-                    return;
-                }
-
-                const pathLength = path.getTotalLength();
-                const pointsData = [];
-                
-                for (let i = 0; i < pointCount; i++) {
-                    const point = path.getPointAtLength((i / (pointCount - 1)) * pathLength);
-                    pointsData.push(new THREE.Vector2(point.x, point.y));
-                }
-
-                updateGeometry(pointsData);
-            };
-
-            reader.readAsText(file);
-        });
+        // Initial setup of geometry
+        updateGeometry(points);
 
         const light = new THREE.DirectionalLight(0xffffff, 1);
         light.position.set(0, 1, 1).normalize();
@@ -117,13 +90,13 @@
         }
 
         function animate() {
-          requestAnimationFrame(animate);
-          if(solidMesh && wireframeMesh) {
-            solidMesh.rotation.y += 0.01;
-            wireframeMesh.rotation.y += 0.01;
-          }
-          controls.update();
-          renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+            if (solidMesh && wireframeMesh) {
+                solidMesh.rotation.y += 0.01;
+                wireframeMesh.rotation.y += 0.01;
+            }
+            controls.update();
+            renderer.render(scene, camera);
         }
         animate();
 
@@ -169,13 +142,13 @@
         document.getElementById('subdivisionsRange').addEventListener('input', (event) => {
             subdivisions = parseInt(event.target.value);
             document.getElementById('subdivisionsValue').textContent = subdivisions;
-            if(solidMesh) updateGeometry(solidMesh.geometry.parameters.points);
+            if (solidMesh) updateGeometry(points);  // Recreate geometry with updated subdivisions
         });
 
         document.getElementById('scaleRange').addEventListener('input', (event) => {
             scale = parseFloat(event.target.value);
             document.getElementById('scaleValue').textContent = scale.toFixed(1);
-            if(solidMesh && wireframeMesh) {
+            if (solidMesh && wireframeMesh) {
                 solidMesh.scale.set(scale, scale, scale);
                 wireframeMesh.scale.set(scale, scale, scale);
             }
@@ -193,8 +166,17 @@
             solidMaterial.color.set(event.target.value);
         });
 
+        // Apply the X offset to all points
+        function applyXOffset() {
+            const xOffset = parseFloat(document.getElementById('xOffset').value);
+            points.forEach(p => {
+                p.x = p.x + xOffset;
+            });
+            updateGeometry(points);
+        }
+
         function exportSTL() {
-            if(!solidMesh) return;
+            if (!solidMesh) return;
             const exporter = new THREE.STLExporter();
             const stlData = exporter.parse(solidMesh);
             const blob = new Blob([stlData], { type: 'text/plain' });
@@ -204,6 +186,7 @@
             link.href = URL.createObjectURL(blob);
             link.download = 'latheShape.stl';
             link.click();
+            document.body.removeChild(link);
         }
     </script>
 </body>
