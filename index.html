@@ -1,83 +1,146 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lathe Geometry Viewer</title>
-    
-    <!-- Load the Space Grotesk font -->
+
+    <!-- Load Space Grotesk Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
-    
+
     <style>
         /* General Body Reset */
         body {
             margin: 0;
-            overflow: hidden;
             font-family: 'Space Grotesk', sans-serif;
         }
 
-        /* Custom unique classes for typography */
-        .space-grotesk-menu {
-            font-family: "Space Grotesk", sans-serif;
-            font-optical-sizing: auto;
-            font-weight: 500; /* Medium weight */
+        /* Top menu bar */
+        .top-menu {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: white;
+            padding: 10px 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            top: 0;
+            left: 10px;
+            right: 10px;
         }
 
-        .space-grotesk-header {
-            font-family: "Space Grotesk", sans-serif;
-            font-optical-sizing: auto;
-            font-weight: 700; /* Bold weight */
+        .top-menu .logo {
+            font-weight: 800;
             font-size: 18px;
+            color: #0077ff;
+            text-decoration: none;
+        }
+
+        .top-menu .menu-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .top-menu .menu-links a {
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
             color: #0077ff;
         }
 
+        /* Sliders and controls */
         #interface {
             position: absolute;
-            top: 10px;
+            top: 60px;
             left: 10px;
-            z-index: 100;
-            background: rgba(255, 255, 255, 0.9);  /* White background with slight transparency */
+            background: rgba(255, 255, 255, 0.9);
             padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1); /* Soft shadow */
-            width: 220px; /* Fixed width for clean layout */
+            width: 220px;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
-        #interface h1,
-        #interface label {
-            font-family: "Space Grotesk", sans-serif;
-            font-optical-sizing: auto;
-        }
-
-        /* Title (header) */
         #interface h1 {
-            color: #0077ff; /* Blue color for title */
-            font-weight: 700; /* Bold weight */
+            color: #0077ff;
             font-size: 18px;
-            margin: 0;
-            margin-bottom: 10px;
+            font-weight: 700;
+            margin: 0 0 10px 0;
         }
 
-        /* Labels */
         #interface label {
             font-size: 14px;
-            font-weight: 500; /* Medium weight */
-            color: #333333;  /* Dark gray for normal text */
+            font-weight: 500;
             display: block;
             margin-bottom: 5px;
-            font-style: normal;
         }
 
-        /* Full-width input elements */
-        #interface input[type="range"],
-        #interface input[type="color"],
-        #interface input[type="file"] {
-            width: 100%; /* Full width for sliders and inputs */
+        /* Slider Styling */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            cursor: pointer;
+            margin: 10px 0;
         }
 
-        /* Style buttons */
+        /* Chrome, Safari, Opera Track */
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 10px;
+            border-radius: 5px;
+            background: linear-gradient(90deg, #0077ff, #00b4ff);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border: 1px solid #ddd;
+        }
+
+        /* Chrome, Safari, Opera Thumb */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #ffffff;
+            border: 3px solid #0077ff;
+            border-radius: 50%;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+            margin-top: -7px;
+        }
+
+        /* Firefox Track */
+        input[type="range"]::-moz-range-track {
+            width: 100%;
+            height: 10px;
+            border-radius: 5px;
+            background: linear-gradient(90deg, #0077ff, #00b4ff);
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border: 1px solid #ddd;
+        }
+
+        /* Firefox Thumb */
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #ffffff;
+            border: 3px solid #0077ff;
+            border-radius: 50%;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        /* Hover and active styles */
+        input[type="range"]:hover::-webkit-slider-thumb,
+        input[type="range"]:hover::-moz-range-thumb,
+        input[type="range"]:active::-webkit-slider-thumb,
+        input[type="range"]:active::-moz-range-thumb {
+            background: #ffcc00;
+            border: 3px solid #ffd700;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Style Buttons */
         #interface button {
             width: calc(50% - 5px);
             padding: 8px;
@@ -85,68 +148,95 @@
             background-color: #0077ff;
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 0px;
             cursor: pointer;
-            font-family: "Space Grotesk", sans-serif;
-            font-weight: 500; /* Medium weight */
         }
 
         #interface button:hover {
             background-color: #005bb5;
         }
 
-        /* Arrow indicator for some buttons */
-        .arrow-right::after {
-            content: ' >';
-            font-weight: bold;
-            color: #0077ff;
+        /* Dimensions Box Styles */
+        .dimensions-box {
+            position: fixed;
+            bottom: 10px;
+            right: 15px;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #333;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            z-index: 200;
+            text-align: right;
         }
     </style>
 </head>
+
 <body>
+
+    <!-- Top Menu -->
+    <div class="top-menu">
+        <a href="https://jmuozan.github.io/jorgemunyozz.github.io/" class="logo">MORE ABOUT ME</a>
+        <div class="menu-links">
+            <a href="#">Research</a>
+            <a href="#">Documentation</a>
+            <a href="#">Library</a>
+            <a href="https://github.com/jmuozan/HandModeling">GitHub</a>
+        </div>
+    </div>
+
+    <!-- Interface section -->
     <div id="interface">
-        <h1 class="space-grotesk-header">Lathe Geometry Generator</h1>
-        
-        <label class="space-grotesk-menu" for="subdivisionsRange">
-            Subdivisions: <span id="subdivisionsValue">12</span>
-        </label>
-        <input type="range" id="subdivisionsRange" min="3" max="32" step="1" value="12">
-        
-        <label class="space-grotesk-menu" for="scaleRange">
-            Scale: <span id="scaleValue">1.0</span>
-        </label>
+        <h1>R3VOLVE DRAWING</h1>
+
+        <!-- Subdivision Slider -->
+        <label for="subdivisionsRange">Subdivisions: <span id="subdivisionsValue">32</span></label>
+        <input type="range" id="subdivisionsRange" min="3" max="32" step="1" value="32">
+
+        <!-- Scale Slider -->
+        <label for="scaleRange">Scale: <span id="scaleValue">1.0</span></label>
         <input type="range" id="scaleRange" min="0.1" max="10" step="0.1" value="1.0">
-        
-        <label class="space-grotesk-menu" for="xOffsetRange">
-            X Offset: <span id="xOffsetValue">0</span>
-        </label>
-        <input type="range" id="xOffsetRange" min="-300" max="300" step="50" value="0">
-        
-        <label class="space-grotesk-menu" for="samplesRange">
-            Number of Samples: <span id="samplesValue">20</span>
-        </label>
+
+        <!-- X Offset Slider -->
+        <label for="xOffsetRange">X Offset: <span id="xOffsetValue">0</span></label>
+        <input type="range" id="xOffsetRange" min="-300" max="300" step="25" value="0">
+
+        <!-- Number of Samples Slider -->
+        <label for="samplesRange">Number of Samples: <span id="samplesValue">20</span></label>
         <input type="range" id="samplesRange" min="3" max="100" step="1" value="20">
-        
-        <label class="space-grotesk-menu arrow-right" for="svgFile">Upload SVG</label>
+
+        <!-- Upload SVG -->
+        <label for="svgFile">Upload SVG</label>
         <input type="file" id="svgFile" accept=".svg">
-        
-        <br>
-        
-        <button class="space-grotesk-menu arrow-right" onclick="resetCamera()">Reset Camera</button>
-        <button class="space-grotesk-menu" onclick="exportSTL()">Export .stl</button>
 
         <br><br>
 
-        <label class="space-grotesk-menu" for="bgColor">Background Color: </label>
+        <!-- Buttons -->
+        <button onclick="resetCamera()">Reset Camera</button>
+        <button onclick="exportSTL()">Export .stl</button>
+
+        <br><br>
+
+        <!-- Color input -->
+        <label for="bgColor">Background Color: </label>
         <input type="color" id="bgColor" value="#ffffff">
-        
-        <label class="space-grotesk-menu" for="lineColor">Line Color: </label>
+
+        <label for="lineColor">Line Color: </label>
         <input type="color" id="lineColor" value="#000000">
-        
-        <label class="space-grotesk-menu" for="shapeColor">Shape Color: </label>
+
+        <label for="shapeColor">Shape Color: </label>
         <input type="color" id="shapeColor" value="#0077ff">
     </div>
 
+    <!-- Dimensions Box -->
+    <div id="dimensions" class="dimensions-box">
+        X: <span id="dimX">0</span>,
+        Y: <span id="dimY">0</span>,
+        Z: <span id="dimZ">0</span>
+    </div>
+
+    <!-- Include necessary libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/exporters/STLExporter.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
@@ -164,24 +254,23 @@
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
 
-        let subdivisions = 12;
-        let scale = 1.0;  // Initial scale
+        let subdivisions = 32;
+        let scale = 1.0;
         let xOffset = 0;
-        let points = [];  // Will hold dynamic points extracted from SVG
+        let points = [];
         let solidMesh, wireframeMesh;
-        let numberOfSamples = 20;  // Initial number of samples
+        let numberOfSamples = 20;
 
         const solidMaterial = new THREE.MeshPhongMaterial({ color: 0x0077ff });
         const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
-
-        let storedPath = null;  // Store original path data of the SVG
-
-        document.getElementById('svgFile').addEventListener('change', parseSVGFile);
+        let storedPath = null;
 
         const light = new THREE.DirectionalLight(0xffffff, 1);
         light.position.set(0, 1, 1).normalize();
         scene.add(light);
 
+        document.getElementById('svgFile').addEventListener('change', parseSVGFile);
+        
         function resetCamera() {
             if (solidMesh) adjustCameraToObject(solidMesh);
         }
@@ -209,7 +298,7 @@
                 scene.remove(solidMesh, wireframeMesh);
             }
 
-            const updatedPoints = points.map(p => new THREE.Vector2(p.x + xOffset, p.y));  // Apply X Offset
+            const updatedPoints = points.map(p => new THREE.Vector2(p.x + xOffset, p.y));
 
             const latheGeometry = new THREE.LatheGeometry(updatedPoints, subdivisions);
             solidMesh = new THREE.Mesh(latheGeometry, solidMaterial);
@@ -219,7 +308,9 @@
             wireframeMesh.scale.set(scale, scale, scale);
 
             scene.add(solidMesh, wireframeMesh);
+
             adjustCameraToObject(solidMesh);
+            updateDimensions(solidMesh);
         }
 
         function adjustCameraToObject(object) {
@@ -239,18 +330,29 @@
             camera.updateProjectionMatrix();
         }
 
+        function updateDimensions(mesh) {
+            const box = new THREE.Box3().setFromObject(mesh);
+            const size = box.getSize(new THREE.Vector3());
+
+            document.getElementById('dimX').textContent = size.x.toFixed(2);
+            document.getElementById('dimY').textContent = size.y.toFixed(2);
+            document.getElementById('dimZ').textContent = size.z.toFixed(2);
+        }
+
         document.getElementById('subdivisionsRange').addEventListener('input', (event) => {
             subdivisions = parseInt(event.target.value);
             document.getElementById('subdivisionsValue').textContent = subdivisions;
-            updateGeometry();  // Recreate geometry with updated subdivisions
+            updateGeometry();
         });
 
         document.getElementById('scaleRange').addEventListener('input', (event) => {
             scale = parseFloat(event.target.value);
             document.getElementById('scaleValue').textContent = scale.toFixed(1);
+
             if (solidMesh && wireframeMesh) {
                 solidMesh.scale.set(scale, scale, scale);
                 wireframeMesh.scale.set(scale, scale, scale);
+                updateDimensions(solidMesh);
             }
         });
 
@@ -266,14 +368,13 @@
             solidMaterial.color.set(event.target.value);
         });
 
-        // X Offset slider change event listener
         document.getElementById('xOffsetRange').addEventListener('input', applyXOffset);
 
         function applyXOffset() {
             const xOffsetValue = parseFloat(document.getElementById('xOffsetRange').value);
-            xOffset = xOffsetValue;  // Update the global X offset
-            document.getElementById('xOffsetValue').textContent = xOffset;  // Update the visible label
-            updateGeometry();  // Apply X offset updates to the geometry
+            xOffset = xOffsetValue;
+            document.getElementById('xOffsetValue').textContent = xOffset;
+            updateGeometry();
         }
 
         document.getElementById('samplesRange').addEventListener('input', (event) => {
@@ -281,9 +382,8 @@
             document.getElementById('samplesValue').textContent = numberOfSamples;
 
             if (storedPath) {
-                // If SVG was already parsed, recalculate points based on new numberOfSamples
                 calculateSVGPointsFromPath(storedPath, numberOfSamples);
-                updateGeometry();  // Recreate geometry with updated points
+                updateGeometry();
             }
         });
 
@@ -301,7 +401,6 @@
             document.body.removeChild(link);
         }
 
-        // Parse SVG file and extract points from path data
         function parseSVGFile(event) {
             const file = event.target.files[0];
             if (file) {
@@ -309,14 +408,12 @@
                 reader.onload = (e) => {
                     const parser = new DOMParser();
                     const xmlDoc = parser.parseFromString(e.target.result, 'image/svg+xml');
-                    const pathElement = xmlDoc.querySelector('path'); // Assuming we are only dealing with path elements
+                    const pathElement = xmlDoc.querySelector('path');
                     if (pathElement) {
                         const dAttr = pathElement.getAttribute('d');
-                        storedPath = dAttr;  // Store the d attribute so we can recalculate later
-
-                        // Calculate the points based on the initial numberOfSamples
+                        storedPath = dAttr;
                         calculateSVGPointsFromPath(dAttr, numberOfSamples);
-                        updateGeometry();  // Update the 3D model
+                        updateGeometry();
                     } else {
                         alert("No valid <path> element found in the SVG.");
                     }
@@ -325,7 +422,6 @@
             }
         }
 
-        // Calculate points from the SVG path's 'd' attribute with the specified number of samples
         function calculateSVGPointsFromPath(d, numSamples) {
             const svgPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             svgPath.setAttribute('d', d);
@@ -337,7 +433,7 @@
                 points.push(new THREE.Vector2(point.x, point.y));
             }
         }
-
     </script>
 </body>
+
 </html>
