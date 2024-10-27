@@ -192,7 +192,7 @@
 
         <!-- Subdivision Slider -->
         <label for="subdivisionsRange">Subdivisions: <span id="subdivisionsValue">32</span></label>
-        <input type="range" id="subdivisionsRange" min="3" max="32" step="1" value="32">
+        <input type="range" id="subdivisionsRange" min="3" max="64" step="1" value="32">
 
         <!-- Scale Slider -->
         <label for="scaleRange">Scale: <span id="scaleValue">1.0</span></label>
@@ -206,9 +206,17 @@
         <label for="samplesRange">Number of Samples: <span id="samplesValue">20</span></label>
         <input type="range" id="samplesRange" min="3" max="100" step="1" value="20">
 
+        <!-- Displacement Scale Slider -->
+        <label for="displacementScaleRange">Displacement Scale: <span id="displacementScaleValue">10</span></label>
+        <input type="range" id="displacementScaleRange" min="0" max="100" step="1" value="0">
+
         <!-- Upload SVG -->
         <label for="svgFile">Upload SVG</label>
         <input type="file" id="svgFile" accept=".svg">
+
+        <!-- Upload Image -->
+        <label for="imageFile">Upload Image</label>
+        <input type="file" id="imageFile" accept="image/*">
 
         <br><br>
 
@@ -260,6 +268,7 @@
         let points = [];
         let solidMesh, wireframeMesh;
         let numberOfSamples = 20;
+        let displacementScale = 10;
 
         const solidMaterial = new THREE.MeshPhongMaterial({ color: 0x0077ff });
         const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
@@ -270,6 +279,12 @@
         scene.add(light);
 
         document.getElementById('svgFile').addEventListener('change', parseSVGFile);
+        document.getElementById('imageFile').addEventListener('change', handleImageUpload);
+        document.getElementById('displacementScaleRange').addEventListener('input', (event) => {
+            displacementScale = parseInt(event.target.value);
+            document.getElementById('displacementScaleValue').textContent = displacementScale;
+            applyDisplacementMap(solidMaterial.displacementMap);
+        });
         
         function resetCamera() {
             if (solidMesh) adjustCameraToObject(solidMesh);
@@ -433,6 +448,31 @@
                 points.push(new THREE.Vector2(point.x, point.y));
             }
         }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                const textureLoader = new THREE.TextureLoader();
+                textureLoader.load(url, (texture) => {
+                    applyDisplacementMap(texture);
+                });
+            }
+        }
+
+        function applyDisplacementMap(texture) {
+        if (texture && solidMesh) {
+            // Set texture properties for potentially better wrapping
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.minFilter = THREE.LinearFilter;
+            texture.repeat.set(1, 1);  // Adjust these based on the desired repeat
+
+            solidMaterial.displacementMap = texture;
+            solidMaterial.displacementScale = displacementScale;
+            solidMaterial.needsUpdate = true;
+        }
+}
     </script>
 </body>
 
