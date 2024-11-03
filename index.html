@@ -23,7 +23,7 @@
     <script>
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 3;
+        camera.position.z = 5;
 
         const renderer = new THREE.WebGLRenderer();
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -34,11 +34,11 @@
         const solidMaterial = new THREE.MeshPhongMaterial({ color: 0x0077ff });
         const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
 
-        let planeGeometry = new THREE.PlaneGeometry(3.6, 1.8, 360, 180);
-        let plane = new THREE.Mesh(planeGeometry, solidMaterial);
-        let wireframe = new THREE.Mesh(planeGeometry.clone(), wireframeMaterial);
+        let cylinderGeometry = new THREE.CylinderGeometry(1, 1, 2, 360, 180, true);
+        let cylinder = new THREE.Mesh(cylinderGeometry, solidMaterial);
+        let wireframe = new THREE.Mesh(cylinderGeometry.clone(), wireframeMaterial);
         wireframe.visible = false;
-        scene.add(plane);
+        scene.add(cylinder);
         scene.add(wireframe);
 
         const light = new THREE.DirectionalLight(0xffffff, 1);
@@ -46,15 +46,19 @@
         scene.add(light);
 
         let displacementTexture = null;
-        let currentScale = 1;
 
         const gui = new dat.GUI();
-        const planeData = {
-            width: 3.6,
-            height: 1.8,
-            widthSegments: 360,
+        const cylinderData = {
+            radiusTop: 1,
+            radiusBottom: 1,
+            height: 2,
+            radialSegments: 360,
             heightSegments: 180,
-            scale: 1,
+        };
+        const scaleFactors = {
+            scaleX: 1,
+            scaleY: 1,
+            scaleZ: 1
         };
         const displacementSettings = {
             displacementScale: 0.1,
@@ -66,25 +70,30 @@
             rotateZ: 0,
         };
 
-        const planePropertiesFolder = gui.addFolder('PlaneGeometry');
-        planePropertiesFolder.add(planeData, 'widthSegments', 1, 720).onChange(regeneratePlaneGeometry);
-        planePropertiesFolder.add(planeData, 'heightSegments', 1, 360).onChange(regeneratePlaneGeometry);
-        planePropertiesFolder.add(planeData, 'scale', 0.1, 10).step(0.01).onChange(scaleMesh);
+        const cylinderPropertiesFolder = gui.addFolder('CylinderGeometry');
+        cylinderPropertiesFolder.add(cylinderData, 'radialSegments', 3, 720).step(1).onChange(regenerateCylinderGeometry);
+        cylinderPropertiesFolder.add(cylinderData, 'heightSegments', 1, 360).step(1).onChange(regenerateCylinderGeometry);
         
+        const scaleFolder = gui.addFolder('Scale');
+        scaleFolder.add(scaleFactors, 'scaleX', 0.1, 10).step(0.01).onChange(applyScaling);
+        scaleFolder.add(scaleFactors, 'scaleY', 0.1, 10).step(0.01).onChange(applyScaling);
+        scaleFolder.add(scaleFactors, 'scaleZ', 0.1, 10).step(0.01).onChange(applyScaling);
+
         const displacementFolder = gui.addFolder('Displacement');
         displacementFolder.add(displacementSettings, 'displacementScale', 0, 1, 0.01).onChange(applyDisplacement);
         displacementFolder.add(displacementSettings, 'invertDisplacement').onChange(applyDisplacement);
 
         const rotationFolder = gui.addFolder('Rotation');
-        rotationFolder.add(rotation, 'rotateX', 0, 360, 30).onChange(() => setRotation(plane, wireframe));
-        rotationFolder.add(rotation, 'rotateY', 0, 360, 30).onChange(() => setRotation(plane, wireframe));
-        rotationFolder.add(rotation, 'rotateZ', 0, 360, 30).onChange(() => setRotation(plane, wireframe));
+        rotationFolder.add(rotation, 'rotateX', 0, 360, 30).onChange(() => setRotation(cylinder, wireframe));
+        rotationFolder.add(rotation, 'rotateY', 0, 360, 30).onChange(() => setRotation(cylinder, wireframe));
+        rotationFolder.add(rotation, 'rotateZ', 0, 360, 30).onChange(() => setRotation(cylinder, wireframe));
 
         addGUIMenuButton(gui, 'Toggle Wireframe', toggleWireframe);
         addGUIMenuButton(gui, 'Upload Image', () => document.getElementById('imageFile').click());
         addGUIMenuButton(gui, 'Download STL', downloadSTL);
 
-        planePropertiesFolder.open();
+        cylinderPropertiesFolder.open();
+        scaleFolder.open();
         displacementFolder.open();
         rotationFolder.open();
 
@@ -114,18 +123,19 @@
         function applyDisplacement() {
             if (displacementTexture) {
                 const scale = displacementSettings.displacementScale * (displacementSettings.invertDisplacement ? -1 : 1);
-                applyDisplacementMap(plane.geometry, displacementTexture, scale);
+                applyDisplacementMap(cylinder.geometry, displacementTexture, scale);
                 applyDisplacementMap(wireframe.geometry, displacementTexture, scale);
             }
         }
 
         function applyDisplacementMap(geometry, texture, scale) {
             if (!texture || !geometry) return geometry;
-            geometry.computeBoundingBox();
+            geometry.computeVertexNormals();
 
             const position = geometry.attributes.position;
             const uv = geometry.attributes.uv;
             const dispMap = texture.image;
+            const normals = geometry.attributes.normal;
 
             if (!dispMap) return geometry;
 
@@ -137,41 +147,44 @@
             const imageData = context.getImageData(0, 0, dispMap.width, dispMap.height);
             const data = imageData.data;
 
-            if (!geometry.originalZ) {
-                geometry.originalZ = new Float32Array(position.count);
-                for (let i = 0; i < position.count; i++) {
-                    geometry.originalZ[i] = position.getZ(i);
-                }
+            if (!geometry.originalPositions) {
+                geometry.originalPositions = position.array.slice();
             }
 
-            for (let i = 0; i < position.count; i++) {
-                position.setZ(i, geometry.originalZ[i]);
-            }
+            position.array.set(geometry.originalPositions);
 
             for (let i = 0; i < position.count; i++) {
                 const ux = Math.floor(uv.getX(i) * dispMap.width);
                 const uy = Math.floor(uv.getY(i) * dispMap.height);
                 const pixelIndex = (uy * dispMap.width + ux) * 4;
                 const displacement = (data[pixelIndex] / 255) * scale;
-                position.setZ(i, position.getZ(i) + displacement);
+
+                position.setXYZ(
+                    i,
+                    position.getX(i) + normals.getX(i) * displacement,
+                    position.getY(i) + normals.getY(i) * displacement,
+                    position.getZ(i) + normals.getZ(i) * displacement
+                );
             }
 
-            geometry.attributes.position.needsUpdate = true;
+            position.needsUpdate = true;
             geometry.computeVertexNormals();
             updateDimensions();
             return geometry;
         }
 
-        function regeneratePlaneGeometry() {
-            const newGeometry = new THREE.PlaneGeometry(
-                planeData.width,
-                planeData.height,
-                planeData.widthSegments,
-                planeData.heightSegments
+        function regenerateCylinderGeometry() {
+            const newGeometry = new THREE.CylinderGeometry(
+                cylinderData.radiusTop,
+                cylinderData.radiusBottom,
+                cylinderData.height,
+                cylinderData.radialSegments,
+                cylinderData.heightSegments,
+                true
             );
-            plane.geometry.dispose();
+            cylinder.geometry.dispose();
             wireframe.geometry.dispose();
-            plane.geometry = newGeometry;
+            cylinder.geometry = newGeometry;
             wireframe.geometry = newGeometry.clone();
             if (displacementTexture) {
                 applyDisplacement();
@@ -179,17 +192,15 @@
             updateDimensions();
         }
 
-        function scaleMesh(scaleFactor) {
-            const scaleRatio = scaleFactor / currentScale;
-            plane.scale.multiplyScalar(scaleRatio);
-            wireframe.scale.multiplyScalar(scaleRatio);
-            currentScale = scaleFactor;
+        function applyScaling() {
+            cylinder.scale.set(scaleFactors.scaleX, scaleFactors.scaleY, scaleFactors.scaleZ);
+            wireframe.scale.set(scaleFactors.scaleX, scaleFactors.scaleY, scaleFactors.scaleZ);
             updateDimensions();
         }
 
         function downloadSTL() {
             const exporter = new THREE.STLExporter();
-            const stlData = exporter.parse(plane);
+            const stlData = exporter.parse(cylinder);
 
             const blob = new Blob([stlData], { type: 'text/plain' });
 
@@ -204,7 +215,7 @@
         }
 
         function updateDimensions() {
-            const box = new THREE.Box3().setFromObject(plane);
+            const box = new THREE.Box3().setFromObject(cylinder);
             const size = new THREE.Vector3();
             box.getSize(size);
             document.getElementById('sizeX').innerText = `Width: ${size.x.toFixed(2)} units`;
