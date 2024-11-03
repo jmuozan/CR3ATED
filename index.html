@@ -9,6 +9,7 @@
         #interface { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 4px; }
         #toggleWireframeBtn, #downloadSTLBtn { display: inline-block; margin-top: 10px; padding: 6px 12px; background-color: #0077ff; color: white; border: none; border-radius: 4px; cursor: pointer; }
         #toggleWireframeBtn:hover, #downloadSTLBtn:hover { background-color: #005bb5; }
+        #dimensions { position: absolute; bottom: 10px; right: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -17,6 +18,11 @@
         <input type="file" id="imageFile" accept="image/*">
         <button id="toggleWireframeBtn">Toggle Wireframe</button>
         <button id="downloadSTLBtn">Download STL</button>
+    </div>
+    <div id="dimensions">
+        <div id="sizeX">Width: 3.6 units</div>
+        <div id="sizeY">Height: 1.8 units</div>
+        <div id="sizeZ">Depth: 0.0 units</div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
@@ -39,7 +45,7 @@
         let planeGeometry = new THREE.PlaneGeometry(3.6, 1.8, 360, 180);
         let plane = new THREE.Mesh(planeGeometry, solidMaterial);
         let wireframe = new THREE.Mesh(planeGeometry.clone(), wireframeMaterial);
-        wireframe.visible = false; // Initially hide wireframe
+        wireframe.visible = false;
         scene.add(plane);
         scene.add(wireframe);
 
@@ -49,6 +55,9 @@
 
         let displacementTexture = null;
         let displacementScale = 0.1;
+        let currentScale = 1;
+        let invertDisplacement = false;
+
         document.getElementById('imageFile').addEventListener('change', handleImageUpload);
         document.getElementById('toggleWireframeBtn').addEventListener('click', toggleWireframe);
         document.getElementById('downloadSTLBtn').addEventListener('click', downloadSTL);
@@ -59,12 +68,22 @@
             height: 1.8,
             widthSegments: 360,
             heightSegments: 180,
+            scale: 1,
+        };
+        const displacementSettings = {
+            displacementScale: 0.1,
+            invertDisplacement: false,
         };
 
         const planePropertiesFolder = gui.addFolder('PlaneGeometry');
         planePropertiesFolder.add(planeData, 'widthSegments', 1, 720).onChange(regeneratePlaneGeometry);
         planePropertiesFolder.add(planeData, 'heightSegments', 1, 360).onChange(regeneratePlaneGeometry);
+        planePropertiesFolder.add(planeData, 'scale', 0.1, 10).step(0.01).onChange(scaleMesh);
+        const displacementFolder = gui.addFolder('Displacement');
+        displacementFolder.add(displacementSettings, 'displacementScale', 0, 1, 0.01).onChange(applyDisplacement);
+        displacementFolder.add(displacementSettings, 'invertDisplacement').onChange(applyDisplacement);
         planePropertiesFolder.open();
+        displacementFolder.open();
 
         function handleImageUpload(event) {
             const file = event.target.files[0];
@@ -84,8 +103,9 @@
 
         function applyDisplacement() {
             if (displacementTexture) {
-                applyDisplacementMap(plane.geometry, displacementTexture, displacementScale);
-                applyDisplacementMap(wireframe.geometry, displacementTexture, displacementScale);
+                const scale = displacementSettings.displacementScale * (displacementSettings.invertDisplacement ? -1 : 1);
+                applyDisplacementMap(plane.geometry, displacementTexture, scale);
+                applyDisplacementMap(wireframe.geometry, displacementTexture, scale);
             }
         }
 
@@ -128,7 +148,7 @@
 
             geometry.attributes.position.needsUpdate = true;
             geometry.computeVertexNormals();
-
+            updateDimensions();
             return geometry;
         }
 
@@ -146,16 +166,23 @@
             if (displacementTexture) {
                 applyDisplacement();
             }
+            updateDimensions();
+        }
+
+        function scaleMesh(scaleFactor) {
+            const scaleRatio = scaleFactor / currentScale;
+            plane.scale.multiplyScalar(scaleRatio);
+            wireframe.scale.multiplyScalar(scaleRatio);
+            currentScale = scaleFactor;
+            updateDimensions();
         }
 
         function downloadSTL() {
             const exporter = new THREE.STLExporter();
             const stlData = exporter.parse(plane);
 
-            // Create a Blob from the STL data
             const blob = new Blob([stlData], { type: 'text/plain' });
 
-            // Create a link element, set the href to the Blob URL, and click it to trigger download
             const link = document.createElement('a');
             link.style.display = 'none';
             document.body.appendChild(link);
@@ -163,8 +190,16 @@
             link.download = 'mesh.stl';
             link.click();
 
-            // Clean up and remove the link
             document.body.removeChild(link);
+        }
+
+        function updateDimensions() {
+            const box = new THREE.Box3().setFromObject(plane);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            document.getElementById('sizeX').innerText = `Width: ${size.x.toFixed(2)} units`;
+            document.getElementById('sizeY').innerText = `Height: ${size.y.toFixed(2)} units`;
+            document.getElementById('sizeZ').innerText = `Depth: ${size.z.toFixed(2)} units`;
         }
 
         function animate() {
@@ -180,7 +215,6 @@
         });
 
         animate();
-
     </script>
 </body>
 </html>
