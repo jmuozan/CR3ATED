@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lathe Geometry Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #interface {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <div id="interface">
+        <h1>Lathe Geometry Generator</h1>
+        <label for="subdivisionsRange">Subdivisions: <span id="subdivisionsValue">12</span></label>
+        <input type="range" id="subdivisionsRange" min="3" max="32" step="1" value="12">
+        <br>
+        <label for="scaleRange">Scale: <span id="scaleValue">1.0</span></label>
+        <input type="range" id="scaleRange" min="0.1" max="10" step="0.1" value="1.0">
+        <br>
+        <label for="xOffset">X Offset: </label>
+        <input type="number" id="xOffset" value="0" style="width: 60px;">
+        <button onclick="applyXOffset()">Apply</button>
+        <br>
+        <button onclick="resetCamera()">Reset Camera</button>
+        <button onclick="exportSTL()">Export .stl</button>
+        <br><br>
+        <label for="bgColor">Background Color: </label>
+        <input type="color" id="bgColor" value="#ffffff">
+        <label for="lineColor">Line Color: </label>
+        <input type="color" id="lineColor" value="#000000">
+        <label for="shapeColor">Shape Color: </label>
+        <input type="color" id="shapeColor" value="#0077ff">
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/exporters/STLExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        let subdivisions = 12;
+        let scale = 1.0;  // Initial scale
+        let solidMesh, wireframeMesh;
+        const solidMaterial = new THREE.MeshPhongMaterial({ color: 0x0077ff });
+        const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
+
+        // Array of points (previously extracted from SVG)
+        const pointsData = [
+            { "x": 809, "y": 160 },
+            { "x": 945.9096069335938, "y": 306.2921142578125 },
+            { "x": 990.1112060546875, "y": 494.57012939453125 },
+            { "x": 849, "y": 637 }
+        ];
+
+        // Transform the pointsData into THREE.Vector2
+        const points = pointsData.map(p => new THREE.Vector2(p.x, p.y));
+
+        // Initial setup of geometry
+        updateGeometry(points);
+
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(0, 1, 1).normalize();
+        scene.add(light);
+
+        function resetCamera() {
+            if(solidMesh) adjustCameraToObject(solidMesh);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (solidMesh && wireframeMesh) {
+                solidMesh.rotation.y += 0.01;
+                wireframeMesh.rotation.y += 0.01;
+            }
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        function updateGeometry(points) {
+            if(solidMesh && wireframeMesh) {
+                scene.remove(solidMesh, wireframeMesh);
+            }
+
+            const latheGeometry = new THREE.LatheGeometry(points, subdivisions);
+            solidMesh = new THREE.Mesh(latheGeometry, solidMaterial);
+            wireframeMesh = new THREE.Mesh(latheGeometry, wireframeMaterial);
+
+            solidMesh.scale.set(scale, scale, scale);
+            wireframeMesh.scale.set(scale, scale, scale);
+
+            scene.add(solidMesh, wireframeMesh);
+            adjustCameraToObject(solidMesh);
+        }
+
+        function adjustCameraToObject(object) {
+            const box = new THREE.Box3().setFromObject(object);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const fov = THREE.MathUtils.degToRad(camera.fov);
+            const cameraZ = maxDim / (2 * Math.tan(fov / 2));
+            camera.position.set(center.x, center.y, cameraZ * 1.5);
+
+            controls.target.copy(center);
+            controls.update();
+
+            camera.far = cameraZ * 3;
+            camera.updateProjectionMatrix();
+        }
+
+        document.getElementById('subdivisionsRange').addEventListener('input', (event) => {
+            subdivisions = parseInt(event.target.value);
+            document.getElementById('subdivisionsValue').textContent = subdivisions;
+            if (solidMesh) updateGeometry(points);  // Recreate geometry with updated subdivisions
+        });
+
+        document.getElementById('scaleRange').addEventListener('input', (event) => {
+            scale = parseFloat(event.target.value);
+            document.getElementById('scaleValue').textContent = scale.toFixed(1);
+            if (solidMesh && wireframeMesh) {
+                solidMesh.scale.set(scale, scale, scale);
+                wireframeMesh.scale.set(scale, scale, scale);
+            }
+        });
+
+        document.getElementById('bgColor').addEventListener('input', (event) => {
+            renderer.setClearColor(event.target.value);
+        });
+
+        document.getElementById('lineColor').addEventListener('input', (event) => {
+            wireframeMaterial.color.set(event.target.value);
+        });
+
+        document.getElementById('shapeColor').addEventListener('input', (event) => {
+            solidMaterial.color.set(event.target.value);
+        });
+
+        // Apply the X offset to all points
+        function applyXOffset() {
+            const xOffset = parseFloat(document.getElementById('xOffset').value);
+            points.forEach(p => {
+                p.x = p.x + xOffset;
+            });
+            updateGeometry(points);
+        }
+
+        function exportSTL() {
+            if (!solidMesh) return;
+            const exporter = new THREE.STLExporter();
+            const stlData = exporter.parse(solidMesh);
+            const blob = new Blob([stlData], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.href = URL.createObjectURL(blob);
+            link.download = 'latheShape.stl';
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>

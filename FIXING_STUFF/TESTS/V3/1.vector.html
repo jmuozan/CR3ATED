@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,7 +22,6 @@
         }
     </style>
 </head>
-
 <body>
     <div id="controlPanel">
         <label for="controlPointsSelector">Number of Control Points:</label>
@@ -31,9 +29,9 @@
             <option value="4">4</option>
             <option value="3">3</option>
             <option value="2">2</option>
-            <!-- You can add more options if needed -->
         </select>
         <button id="resetButton">Reset</button>
+        <button id="downloadButton">Download SVG</button>
     </div>
     <svg id="drawingCanvas"></svg>
 
@@ -45,6 +43,7 @@
             const svg = document.getElementById('drawingCanvas');
             const controlSelector = document.getElementById('controlPointsSelector');
             const resetButton = document.getElementById('resetButton');
+            const downloadButton = document.getElementById('downloadButton');
             let numberOfControlPoints = parseInt(controlSelector.value);
 
             controlSelector.addEventListener('change', function () {
@@ -54,6 +53,10 @@
 
             resetButton.addEventListener('click', function () {
                 clearCanvas();
+            });
+
+            downloadButton.addEventListener('click', function () {
+                downloadSVG();
             });
 
             const controlPoints = [];
@@ -99,6 +102,31 @@
                 controlPoints.length = 0;
                 isDragging = false;
                 selectedControlPoint = null;
+            }
+
+            function downloadSVG() {
+                // Temporarily remove control points
+                controlPoints.forEach(point => svg.removeChild(point));
+
+                // Serialize SVG content to XML string
+                const serializer = new XMLSerializer();
+                const source = serializer.serializeToString(svg);
+
+                // Create a blob from the string
+                const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+
+                // Generate a link for the blob and trigger download
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'vector_drawing.svg';
+                a.click();
+
+                // Clean up
+                URL.revokeObjectURL(url);
+
+                // Restore control points after download
+                controlPoints.forEach(point => svg.appendChild(point));
             }
 
             svg.addEventListener('mousedown', function (e) {
