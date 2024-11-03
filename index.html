@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Displacement Map Example</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #interface { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div id="interface">
+        <label for="imageFile">Upload Image for Displacement Map:</label>
+        <input type="file" id="imageFile" accept="image/*">
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dat.gui"></script>
+    <script>
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 3;
+
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+        const solidMaterial = new THREE.MeshPhongMaterial({ color: 0x0077ff });
+        const planeGeometry = new THREE.PlaneGeometry(3.6, 1.8, 360, 180);
+        const plane = new THREE.Mesh(planeGeometry, solidMaterial);
+        scene.add(plane);
+
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(0, 5, 10);
+        scene.add(light);
+
+        let displacementTexture = null;
+        let displacementScale = 0.1;
+        document.getElementById('imageFile').addEventListener('change', handleImageUpload);
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                const textureLoader = new THREE.TextureLoader();
+                textureLoader.load(url, (texture) => {
+                    displacementTexture = texture;
+                    applyDisplacementMap(texture);
+                });
+            }
+        }
+
+        function applyDisplacementMap(texture) {
+            if (texture && plane) {
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.minFilter = THREE.LinearFilter;
+                texture.repeat.set(1, 1);
+                solidMaterial.displacementMap = texture;
+                solidMaterial.displacementScale = displacementScale;
+                solidMaterial.needsUpdate = true;
+                applyDisplacementToGeometry(plane.geometry, texture, displacementScale);
+            }
+        }
+
+        function applyDisplacementToGeometry(geometry, texture, scale) {
+            if (!texture || !geometry) return geometry;
+            geometry.computeBoundingBox();
+
+            const position = geometry.attributes.position;
+            const uv = geometry.attributes.uv;
+            const dispMap = texture.image;
+
+            if (!dispMap) return geometry;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = dispMap.width;
+            canvas.height = dispMap.height;
+            const context = canvas.getContext('2d');
+            context.drawImage(dispMap, 0, 0);
+            const imageData = context.getImageData(0, 0, dispMap.width, dispMap.height);
+            const data = imageData.data;
+
+            if (!geometry.originalZ) {
+                geometry.originalZ = new Float32Array(position.count);
+                for (let i = 0; i < position.count; i++) {
+                    geometry.originalZ[i] = position.getZ(i);
+                }
+            }
+
+            for (let i = 0; i < position.count; i++) {
+                position.setZ(i, geometry.originalZ[i]);
+            }
+
+            for (let i = 0; i < position.count; i++) {
+                const ux = Math.floor(uv.getX(i) * dispMap.width);
+                const uy = Math.floor(uv.getY(i) * dispMap.height);
+                const pixelIndex = (uy * dispMap.width + ux) * 4;
+                const displacement = (data[pixelIndex] / 255) * scale;
+                position.setZ(i, position.getZ(i) + displacement);
+            }
+
+            geometry.attributes.position.needsUpdate = true;
+            geometry.computeVertexNormals();
+
+            return geometry;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+
+    </script>
+</body>
+</html>
