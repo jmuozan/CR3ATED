@@ -6,19 +6,27 @@
     <title>Displacement Map with Toggleable Wireframe</title>
     <style>
         body { margin: 0; overflow: hidden; }
-        #interface { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 4px; }
-        #toggleWireframeBtn, #downloadSTLBtn { display: inline-block; margin-top: 10px; padding: 6px 12px; background-color: #0077ff; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        #toggleWireframeBtn:hover, #downloadSTLBtn:hover { background-color: #005bb5; }
         #dimensions { position: absolute; bottom: 10px; right: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 4px; }
+        .control-button {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 6px 12px;
+            background-color: #0077ff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .control-button:hover {
+            background-color: #005bb5;
+        }
+        input[type="file"] {
+            display: none;
+        }
     </style>
 </head>
 <body>
-    <div id="interface">
-        <label for="imageFile">Upload Image for Displacement Map:</label>
-        <input type="file" id="imageFile" accept="image/*">
-        <button id="toggleWireframeBtn">Toggle Wireframe</button>
-        <button id="downloadSTLBtn">Download STL</button>
-    </div>
+    <input type="file" id="imageFile" accept="image/*">
     <div id="dimensions">
         <div id="sizeX">Width: 3.6 units</div>
         <div id="sizeY">Height: 1.8 units</div>
@@ -58,10 +66,6 @@
         let currentScale = 1;
         let invertDisplacement = false;
 
-        document.getElementById('imageFile').addEventListener('change', handleImageUpload);
-        document.getElementById('toggleWireframeBtn').addEventListener('click', toggleWireframe);
-        document.getElementById('downloadSTLBtn').addEventListener('click', downloadSTL);
-
         const gui = new dat.GUI();
         const planeData = {
             width: 3.6,
@@ -75,15 +79,31 @@
             invertDisplacement: false,
         };
 
+        // Create a GUI folder for plane properties
         const planePropertiesFolder = gui.addFolder('PlaneGeometry');
         planePropertiesFolder.add(planeData, 'widthSegments', 1, 720).onChange(regeneratePlaneGeometry);
         planePropertiesFolder.add(planeData, 'heightSegments', 1, 360).onChange(regeneratePlaneGeometry);
         planePropertiesFolder.add(planeData, 'scale', 0.1, 10).step(0.01).onChange(scaleMesh);
+
+        // Create a GUI folder for displacement settings
         const displacementFolder = gui.addFolder('Displacement');
         displacementFolder.add(displacementSettings, 'displacementScale', 0, 1, 0.01).onChange(applyDisplacement);
         displacementFolder.add(displacementSettings, 'invertDisplacement').onChange(applyDisplacement);
+
+        // Add buttons to Control GUI
+        addGUIMenuButton(gui, 'Toggle Wireframe', toggleWireframe);
+        addGUIMenuButton(gui, 'Upload Image', () => document.getElementById('imageFile').click());
+        addGUIMenuButton(gui, 'Download STL', downloadSTL);
+
         planePropertiesFolder.open();
         displacementFolder.open();
+
+        document.getElementById('imageFile').addEventListener('change', handleImageUpload);
+
+        function addGUIMenuButton(gui, name, onClickCallback) {
+            const obj = { [name]: onClickCallback };
+            gui.add(obj, name);
+        }
 
         function handleImageUpload(event) {
             const file = event.target.files[0];
