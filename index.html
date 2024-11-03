@@ -7,22 +7,6 @@
     <style>
         body { margin: 0; overflow: hidden; }
         #dimensions { position: absolute; bottom: 10px; right: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 4px; }
-        .control-button {
-            display: inline-block;
-            margin-top: 10px;
-            padding: 6px 12px;
-            background-color: #0077ff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .control-button:hover {
-            background-color: #005bb5;
-        }
-        input[type="file"] {
-            display: none;
-        }
     </style>
 </head>
 <body>
@@ -62,9 +46,7 @@
         scene.add(light);
 
         let displacementTexture = null;
-        let displacementScale = 0.1;
         let currentScale = 1;
-        let invertDisplacement = false;
 
         const gui = new dat.GUI();
         const planeData = {
@@ -78,25 +60,33 @@
             displacementScale: 0.1,
             invertDisplacement: false,
         };
+        const rotation = {
+            rotateX: 0,
+            rotateY: 0,
+            rotateZ: 0,
+        };
 
-        // Create a GUI folder for plane properties
         const planePropertiesFolder = gui.addFolder('PlaneGeometry');
         planePropertiesFolder.add(planeData, 'widthSegments', 1, 720).onChange(regeneratePlaneGeometry);
         planePropertiesFolder.add(planeData, 'heightSegments', 1, 360).onChange(regeneratePlaneGeometry);
         planePropertiesFolder.add(planeData, 'scale', 0.1, 10).step(0.01).onChange(scaleMesh);
-
-        // Create a GUI folder for displacement settings
+        
         const displacementFolder = gui.addFolder('Displacement');
         displacementFolder.add(displacementSettings, 'displacementScale', 0, 1, 0.01).onChange(applyDisplacement);
         displacementFolder.add(displacementSettings, 'invertDisplacement').onChange(applyDisplacement);
 
-        // Add buttons to Control GUI
+        const rotationFolder = gui.addFolder('Rotation');
+        rotationFolder.add(rotation, 'rotateX', 0, 360, 30).onChange(() => setRotation(plane, wireframe));
+        rotationFolder.add(rotation, 'rotateY', 0, 360, 30).onChange(() => setRotation(plane, wireframe));
+        rotationFolder.add(rotation, 'rotateZ', 0, 360, 30).onChange(() => setRotation(plane, wireframe));
+
         addGUIMenuButton(gui, 'Toggle Wireframe', toggleWireframe);
         addGUIMenuButton(gui, 'Upload Image', () => document.getElementById('imageFile').click());
         addGUIMenuButton(gui, 'Download STL', downloadSTL);
 
         planePropertiesFolder.open();
         displacementFolder.open();
+        rotationFolder.open();
 
         document.getElementById('imageFile').addEventListener('change', handleImageUpload);
 
@@ -220,6 +210,15 @@
             document.getElementById('sizeX').innerText = `Width: ${size.x.toFixed(2)} units`;
             document.getElementById('sizeY').innerText = `Height: ${size.y.toFixed(2)} units`;
             document.getElementById('sizeZ').innerText = `Depth: ${size.z.toFixed(2)} units`;
+        }
+
+        function setRotation(planeMesh, wireframeMesh) {
+            const radiansX = THREE.MathUtils.degToRad(rotation.rotateX);
+            const radiansY = THREE.MathUtils.degToRad(rotation.rotateY);
+            const radiansZ = THREE.MathUtils.degToRad(rotation.rotateZ);
+
+            planeMesh.rotation.set(radiansX, radiansY, radiansZ);
+            wireframeMesh.rotation.set(radiansX, radiansY, radiansZ);
         }
 
         function animate() {
