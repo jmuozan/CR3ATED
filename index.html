@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Displacement Map Example</title>
+    <title>Displacement Map with Wireframe</title>
     <style>
         body { margin: 0; overflow: hidden; }
         #interface { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 4px; }
@@ -30,9 +30,13 @@
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
 
         const solidMaterial = new THREE.MeshPhongMaterial({ color: 0x0077ff });
-        const planeGeometry = new THREE.PlaneGeometry(3.6, 1.8, 360, 180);
-        const plane = new THREE.Mesh(planeGeometry, solidMaterial);
+        const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
+
+        let planeGeometry = new THREE.PlaneGeometry(3.6, 1.8, 360, 180);
+        let plane = new THREE.Mesh(planeGeometry, solidMaterial);
+        let wireframe = new THREE.Mesh(planeGeometry.clone(), wireframeMaterial);
         scene.add(plane);
+        scene.add(wireframe);
 
         const light = new THREE.DirectionalLight(0xffffff, 1);
         light.position.set(0, 5, 10);
@@ -42,6 +46,19 @@
         let displacementScale = 0.1;
         document.getElementById('imageFile').addEventListener('change', handleImageUpload);
 
+        const gui = new dat.GUI();
+        const planeData = {
+            width: 3.6,
+            height: 1.8,
+            widthSegments: 360,
+            heightSegments: 180,
+        };
+
+        const planePropertiesFolder = gui.addFolder('PlaneGeometry');
+        planePropertiesFolder.add(planeData, 'widthSegments', 1, 720).onChange(regeneratePlaneGeometry);
+        planePropertiesFolder.add(planeData, 'heightSegments', 1, 360).onChange(regeneratePlaneGeometry);
+        planePropertiesFolder.open();
+
         function handleImageUpload(event) {
             const file = event.target.files[0];
             if (file) {
@@ -49,25 +66,19 @@
                 const textureLoader = new THREE.TextureLoader();
                 textureLoader.load(url, (texture) => {
                     displacementTexture = texture;
-                    applyDisplacementMap(texture);
+                    applyDisplacement();
                 });
             }
         }
 
-        function applyDisplacementMap(texture) {
-            if (texture && plane) {
-                texture.wrapS = THREE.RepeatWrapping;
-                texture.wrapT = THREE.RepeatWrapping;
-                texture.minFilter = THREE.LinearFilter;
-                texture.repeat.set(1, 1);
-                solidMaterial.displacementMap = texture;
-                solidMaterial.displacementScale = displacementScale;
-                solidMaterial.needsUpdate = true;
-                applyDisplacementToGeometry(plane.geometry, texture, displacementScale);
+        function applyDisplacement() {
+            if (displacementTexture) {
+                applyDisplacementMap(plane.geometry, displacementTexture, displacementScale);
+                applyDisplacementMap(wireframe.geometry, displacementTexture, displacementScale);
             }
         }
 
-        function applyDisplacementToGeometry(geometry, texture, scale) {
+        function applyDisplacementMap(geometry, texture, scale) {
             if (!texture || !geometry) return geometry;
             geometry.computeBoundingBox();
 
@@ -108,6 +119,22 @@
             geometry.computeVertexNormals();
 
             return geometry;
+        }
+
+        function regeneratePlaneGeometry() {
+            const newGeometry = new THREE.PlaneGeometry(
+                planeData.width,
+                planeData.height,
+                planeData.widthSegments,
+                planeData.heightSegments
+            );
+            plane.geometry.dispose();
+            wireframe.geometry.dispose();
+            plane.geometry = newGeometry;
+            wireframe.geometry = newGeometry.clone();
+            if (displacementTexture) {
+                applyDisplacement();
+            }
         }
 
         function animate() {
