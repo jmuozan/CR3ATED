@@ -3,16 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Displacement Map with Wireframe</title>
+    <title>Displacement Map with Toggleable Wireframe</title>
     <style>
         body { margin: 0; overflow: hidden; }
         #interface { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 4px; }
+        #toggleWireframeBtn { display: inline-block; margin-top: 10px; padding: 6px 12px; background-color: #0077ff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #toggleWireframeBtn:hover { background-color: #005bb5; }
     </style>
 </head>
 <body>
     <div id="interface">
         <label for="imageFile">Upload Image for Displacement Map:</label>
         <input type="file" id="imageFile" accept="image/*">
+        <button id="toggleWireframeBtn">Toggle Wireframe</button>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
@@ -35,6 +38,7 @@
         let planeGeometry = new THREE.PlaneGeometry(3.6, 1.8, 360, 180);
         let plane = new THREE.Mesh(planeGeometry, solidMaterial);
         let wireframe = new THREE.Mesh(planeGeometry.clone(), wireframeMaterial);
+        wireframe.visible = false; // Initially hide wireframe
         scene.add(plane);
         scene.add(wireframe);
 
@@ -45,6 +49,7 @@
         let displacementTexture = null;
         let displacementScale = 0.1;
         document.getElementById('imageFile').addEventListener('change', handleImageUpload);
+        document.getElementById('toggleWireframeBtn').addEventListener('click', toggleWireframe);
 
         const gui = new dat.GUI();
         const planeData = {
@@ -69,6 +74,10 @@
                     applyDisplacement();
                 });
             }
+        }
+
+        function toggleWireframe() {
+            wireframe.visible = !wireframe.visible;
         }
 
         function applyDisplacement() {
