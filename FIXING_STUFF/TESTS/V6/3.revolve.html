@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Combined SVG Path to 3D Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #interface {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <div id="interface">
+        <h1>SVG Path Points Extractor & 3D Viewer</h1>
+        <input type="file" id="fileInput" accept=".svg"/>
+        <input type="number" id="pointCount" placeholder="Number of Points" min="1" value="5"/>
+        <button id="extractButton">Extract & Visualize</button>
+        
+        <br><br>
+        <label for="xOffset">X Offset: </label>
+        <input type="number" id="xOffset" placeholder="Enter X offset" value="0" step="1">
+        <label for="yOffset">Y Offset: </label>
+        <input type="number" id="yOffset" placeholder="Enter Y offset" value="0" step="1">
+        <button id="applyOffsetButton">Apply Offsets</button>
+        
+        <br><br>
+        <label for="subdivisionsRange">Subdivisions: <span id="subdivisionsValue">12</span></label>
+        <input type="range" id="subdivisionsRange" min="3" max="32" step="1" value="12">
+        
+        <br>
+        <label for="scaleRange">Scale: <span id="scaleValue">1.0</span></label>
+        <input type="range" id="scaleRange" min="0.1" max="10" step="0.1" value="1.0">
+        
+        <br>
+        <label for="rotateX">Rotate X: </label>
+        <input type="range" id="rotateXRange" min="0" max="360" step="1" value="0">
+        <input type="number" id="rotateXInput" min="0" max="360" step="1" value="0">°
+        
+        <br>
+        <label for="rotateY">Rotate Y: </label>
+        <input type="range" id="rotateYRange" min="0" max="360" step="1" value="0">
+        <input type="number" id="rotateYInput" min="0" max="360" step="1" value="0">°
+        
+        <br>
+        <label for="rotateZ">Rotate Z: </label>
+        <input type="range" id="rotateZRange" min="0" max="360" step="1" value="0">
+        <input type="number" id="rotateZInput" min="0" max="360" step="1" value="0">°
+        
+        <br>
+        <button onclick="resetCamera()">Reset Camera</button>
+        <button onclick="exportSTL()">Export .stl</button>
+        
+        <br><br>
+        <label for="bgColor">Background Color: </label>
+        <input type="color" id="bgColor" value="#ffffff">
+        <label for="lineColor">Line Color: </label>
+        <input type="color" id="lineColor" value="#000000">
+        <label for="shapeColor">Shape Color: </label>
+        <input type="color" id="shapeColor" value="#0077ff">
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/exporters/STLExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        let subdivisions = 12;
+        let scale = 1.0;
+        let solidMesh, wireframeMesh;
+        let originalPoints = [];
+        const solidMaterial = new THREE.MeshPhongMaterial({ color: 0x0077ff });
+        const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true });
+
+        // SVG Extraction Functionality
+        document.getElementById('extractButton').addEventListener('click', function() {
+            const fileInput = document.getElementById('fileInput');
+            const pointCountInput = document.getElementById('pointCount');
+            const file = fileInput.files[0];
+            const pointCount = parseInt(pointCountInput.value, 10);
+
+            if (!file) {
+                alert('Please upload an SVG file.');
+                return;
+            }
+
+            if (isNaN(pointCount) || pointCount <= 0) {
+                alert('Please enter a valid number of points.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const parser = new DOMParser();
+                const svgDoc = parser.parseFromString(event.target.result, 'image/svg+xml');
+                const path = svgDoc.querySelector('path');
+                
+                if (!path) {
+                    alert('SVG must contain a <path> element.');
+                    return;
+                }
+
+                const pathLength = path.getTotalLength();
+                originalPoints = [];
+
+                for (let i = 0; i < pointCount; i++) {
+                    const point = path.getPointAtLength((i / (pointCount - 1)) * pathLength);
+                    
+                    // Store the Vector2 points (Inverting Y because of SVG coordinate system might be inverted in 3D)
+                    originalPoints.push(new THREE.Vector2(point.x, point.y * -1)); // Inverting Y if needed
+                }
+
+                console.log("Extracted points:", originalPoints); // Debug information
+                
+                updateGeometry(originalPoints);
+            };
+
+            reader.readAsText(file);
+        });
+
+        // Apply Offsets to the Geometry
+        document.getElementById('applyOffsetButton').addEventListener('click', function() {
+            const xOffset = parseFloat(document.getElementById('xOffset').value);
+            const yOffset = parseFloat(document.getElementById('yOffset').value);
+
+            if (isNaN(xOffset) || isNaN(yOffset)) {
+                alert('Please enter valid numbers for the offsets.');
+                return;
+            }
+            
+            if (originalPoints.length > 0) {
+                // Apply the X and Y offset directly to the points
+                const adjustedPoints = originalPoints.map(point => new THREE.Vector2(
+                    point.x + xOffset, // Apply X Offset
+                    point.y + yOffset,  // Apply Y Offset
+                ));
+                
+                console.log("Adjusted points with offsets:", adjustedPoints);  // Debugging information
+                
+                updateGeometry(adjustedPoints);
+            }
+        });
+
+        // Add Lights
+        const frontLight = new THREE.DirectionalLight(0xffffff, 1.3);
+        frontLight.position.set(0, 0.6, 1).normalize();
+        scene.add(frontLight);
+
+        const backLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        backLight.position.set(0, -0.3, -0.4).normalize();
+        scene.add(backLight);
+
+        const topLight = new THREE.SpotLight(0xffffff, 1);
+        topLight.position.set(0, 2, 0);
+        topLight.castShadow = true;
+        scene.add(topLight);
+
+        // Reset Camera
+        function resetCamera() {
+            if (solidMesh) adjustCameraToObject(solidMesh);
+        }
+
+        // Animate the Scene
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Updated Geometry Function
+        function updateGeometry(points) {
+            if (solidMesh && wireframeMesh) {
+                scene.remove(solidMesh, wireframeMesh);
+            }
+
+            const latheGeometry = new THREE.LatheGeometry(points, subdivisions);
+            solidMesh = new THREE.Mesh(latheGeometry, solidMaterial);
+            wireframeMesh = new THREE.Mesh(latheGeometry, wireframeMaterial);
+
+            solidMesh.scale.set(scale, scale, scale);
+            wireframeMesh.scale.set(scale, scale, scale);
+
+            solidMesh.rotation.set(
+                THREE.MathUtils.degToRad(document.getElementById('rotateXRange').value),
+                THREE.MathUtils.degToRad(document.getElementById('rotateYRange').value),
+                THREE.MathUtils.degToRad(document.getElementById('rotateZRange').value)
+            );
+            wireframeMesh.rotation.copy(solidMesh.rotation);
+
+            scene.add(solidMesh, wireframeMesh);
+            adjustCameraToObject(solidMesh);
+        }
+
+        // Adjust Camera to Focus on the Object
+        function adjustCameraToObject(object) {
+            const box = new THREE.Box3().setFromObject(object);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const fov = THREE.MathUtils.degToRad(camera.fov);
+            const cameraZ = maxDim / (2 * Math.tan(fov / 2));
+            camera.position.set(center.x, center.y, cameraZ * 1.5);
+
+            controls.target.copy(center);
+            controls.update();
+
+            camera.far = cameraZ * 3;
+            camera.updateProjectionMatrix();
+        }
+
+        // Event Listeners for Subdivision, Scaling, and Rotation
+        document.getElementById('subdivisionsRange').addEventListener('input', (event) => {
+            subdivisions = parseInt(event.target.value);
+            document.getElementById('subdivisionsValue').textContent = subdivisions;
+            if (solidMesh) updateGeometry(originalPoints);
+        });
+
+        document.getElementById('scaleRange').addEventListener('input', (event) => {
+            scale = parseFloat(event.target.value);
+            document.getElementById('scaleValue').textContent = scale.toFixed(1);
+            if (solidMesh && wireframeMesh) {
+                solidMesh.scale.set(scale, scale, scale);
+                wireframeMesh.scale.set(scale, scale, scale);
+            }
+        });
+
+        function updateRotation(axis, angle) {
+            if (solidMesh && wireframeMesh) {
+                const radians = THREE.MathUtils.degToRad(angle);
+                solidMesh.rotation[axis] = radians;
+                wireframeMesh.rotation[axis] = radians;
+                document.getElementById(`rotate${axis.toUpperCase()}Range`).value = angle;
+                document.getElementById(`rotate${axis.toUpperCase()}Input`).value = angle;
+            }
+        }
+
+        ['X', 'Y', 'Z'].forEach(axis => {
+            document.getElementById(`rotate${axis}Range`).addEventListener('input', (event) => {
+                const angle = parseFloat(event.target.value);
+                updateRotation(axis.toLowerCase(), angle);
+            });
+
+            document.getElementById(`rotate${axis}Input`).addEventListener('input', (event) => {
+                const angle = parseFloat(event.target.value);
+                updateRotation(axis.toLowerCase(), angle);
+            });
+        });
+
+        // Style/Color Adjustments
+        document.getElementById('bgColor').addEventListener('input', (event) => {
+            renderer.setClearColor(event.target.value);
+        });
+
+        document.getElementById('lineColor').addEventListener('input', (event) => {
+            wireframeMaterial.color.set(event.target.value);
+        });
+
+        document.getElementById('shapeColor').addEventListener('input', (event) => {
+            solidMaterial.color.set(event.target.value);
+        });
+
+        // Export STL Functionality
+        function exportSTL() {
+            if (!solidMesh) return;
+            const exporter = new THREE.STLExporter();
+            const stlData = exporter.parse(solidMesh);
+            const blob = new Blob([stlData], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.href = URL.createObjectURL(blob);
+            link.download = 'latheShape.stl';
+            link.click();
+        }
+    </script>
+</body>
+</html>
