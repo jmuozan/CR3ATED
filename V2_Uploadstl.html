@@ -128,18 +128,12 @@
                         scene.remove(wireframe);
                     }
 
-                    geometry.computeVertexNormals();
-
                     mesh = new THREE.Mesh(geometry, solidMaterial);
                     wireframe = new THREE.Mesh(geometry.clone(), wireframeMaterial);
                     wireframe.visible = false;
 
                     scene.add(mesh);
                     scene.add(wireframe);
-
-                    if (!geometry.originalPositions) {
-                        geometry.originalPositions = geometry.attributes.position.array.slice();
-                    }
 
                     applyScaling();
                     applyDisplacement();
@@ -170,19 +164,8 @@
         function applyDisplacement() {
             if (displacementTexture && mesh) {
                 const scale = displacementSettings.displacementScale * (displacementSettings.invertDisplacement ? -1 : 1);
-                resetGeometry(mesh.geometry);
-                resetGeometry(wireframe.geometry);
                 applyDisplacementMap(mesh.geometry, displacementTexture, scale);
                 applyDisplacementMap(wireframe.geometry, displacementTexture, scale);
-            }
-        }
-
-        function resetGeometry(geometry) {
-            if (geometry.originalPositions) {
-                const position = geometry.attributes.position;
-                position.array.set(geometry.originalPositions);
-                position.needsUpdate = true;
-                geometry.computeVertexNormals();
             }
         }
 
@@ -191,7 +174,7 @@
             geometry.computeVertexNormals();
 
             const position = geometry.attributes.position;
-            const uv = generateUVs(geometry);
+            const uv = geometry.attributes.uv;
             const dispMap = texture.image;
             const normals = geometry.attributes.normal;
 
@@ -204,6 +187,10 @@
             context.drawImage(dispMap, 0, 0);
             const imageData = context.getImageData(0, 0, dispMap.width, dispMap.height);
             const data = imageData.data;
+
+            if (!geometry.originalPositions) {
+                geometry.originalPositions = position.array.slice();
+            }
 
             position.array.set(geometry.originalPositions);
 
@@ -225,25 +212,6 @@
             geometry.computeVertexNormals();
             updateDimensions();
             return geometry;
-        }
-
-        function generateUVs(geometry) {
-            // Create UV coordinates for the geometry based on its bounding box
-            const position = geometry.attributes.position;
-            const box = new THREE.Box3().setFromBufferAttribute(position);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-
-            const uv = new THREE.BufferAttribute(new Float32Array(position.count * 2), 2);
-
-            for (let i = 0; i < position.count; i++) {
-                const x = (position.getX(i) - box.min.x) / size.x;
-                const y = (position.getY(i) - box.min.y) / size.y;
-                uv.setXY(i, x, y);
-            }
-
-            geometry.setAttribute('uv', uv);
-            return uv;
         }
 
         function applyScaling() {
