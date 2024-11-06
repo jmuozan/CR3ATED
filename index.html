@@ -115,7 +115,7 @@
         rotationFolder.add(rotation, 'rotateZ', -180, 180, 30).onChange(() => setRotation(mesh, wireframe));
 
         const subdivisionFolder = gui.addFolder('Subdivision');
-        subdivisionFolder.add(subdivisionSettings, 'iterations', 1, 3, 1);
+        subdivisionFolder.add(subdivisionSettings, 'iterations', 1, 6, 1);
         subdivisionFolder.add(subdivisionSettings, 'split').name('Split Faces');
         subdivisionFolder.add(subdivisionSettings, 'preserveEdges').name('Preserve Edges');
         subdivisionFolder.add(subdivisionSettings, 'flatOnly').name('Flat Subdivision');
