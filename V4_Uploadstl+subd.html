@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STL Viewer with Subdivision Debug</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #dimensions { 
+            position: absolute; 
+            bottom: 10px; 
+            right: 10px; 
+            background: rgba(255, 255, 255, 0.8); 
+            padding: 10px; 
+            border-radius: 4px; 
+        }
+        #fileInput {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+        }
+        #debug {
+            position: absolute;
+            top: 50px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <input type="file" id="fileInput" accept=".stl">
+    <div id="dimensions">
+        <div id="sizeX">Width: 0.0 units</div>
+        <div id="sizeY">Height: 0.0 units</div>
+        <div id="sizeZ">Depth: 0.0 units</div>
+    </div>
+    <div id="debug"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dat.gui"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128/examples/js/loaders/STLLoader.js"></script>
+    <script src="./js/LoopSubdivision.js"></script>
+
+    <script>
+        // Debug check for LoopSubdivision
+        console.log("LoopSubdivision available:", typeof LoopSubdivision !== 'undefined');
+
+        const debugElement = document.getElementById('debug');
+        function updateDebug(text) {
+            debugElement.textContent = text;
+            console.log(text);
+        }
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0xffffff);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        const solidMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0x0077ff,
+            flatShading: false,
+            side: THREE.DoubleSide
+        });
+        const wireframeMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x000000, 
+            wireframe: true 
+        });
+
+        let mesh = null;
+        let wireframe = null;
+        let originalGeometry = null;
+
+        // GUI Parameters
+        const params = {
+            wireframe: false,
+            iterations: 1,
+            split: false,
+            preserveEdges: true,
+            flatOnly: false,
+            flatShading: false,
+            showTriangleCount: () => showTriangleCount(),
+            subdivide: () => updateSubdivision()
+        };
+
+        const gui = new dat.GUI();
+        gui.add(params, 'wireframe').onChange(value => {
+            if (wireframe) wireframe.visible = value;
+        });
+        gui.add(params, 'iterations', 1, 3, 1);
+        gui.add(params, 'split').name('Split Faces');
+        gui.add(params, 'preserveEdges').name('Preserve Edges');
+        gui.add(params, 'flatOnly').name('Flat Subdivision');
+        gui.add(params, 'flatShading').name('Flat Shading').onChange(value => {
+            solidMaterial.flatShading = value;
+            solidMaterial.needsUpdate = true;
+        });
+        gui.add(params, 'showTriangleCount').name('Show Triangle Count');
+        gui.add(params, 'subdivide').name('Apply Subdivision');
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 2);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(0, 5, 5);
+        scene.add(directionalLight);
+
+        function showTriangleCount() {
+            if (mesh) {
+                const triangleCount = mesh.geometry.attributes.position.count / 3;
+                updateDebug(`Triangle count: ${triangleCount}`);
+            }
+        }
+
+        function updateSubdivision() {
+            if (!originalGeometry) {
+                updateDebug('No geometry loaded');
+                return;
+            }
+
+            try {
+                updateDebug('Starting subdivision...');
+                const startTriangles = originalGeometry.attributes.position.count / 3;
+                updateDebug(`Starting with ${startTriangles} triangles`);
+
+                // Store current position and rotation
+                const currentPosition = mesh ? mesh.position.clone() : new THREE.Vector3();
+                const currentRotation = mesh ? mesh.rotation.clone() : new THREE.Euler();
+
+                // Remove existing meshes
+                if (mesh) scene.remove(mesh);
+                if (wireframe) scene.remove(wireframe);
+
+                const subdivided = LoopSubdivision.modify(originalGeometry.clone(), params.iterations, {
+                    split: params.split,
+                    preserveEdges: params.preserveEdges,
+                    flatOnly: params.flatOnly
+                });
+
+                const endTriangles = subdivided.attributes.position.count / 3;
+                updateDebug(`Subdivision complete. Triangles: ${startTriangles} → ${endTriangles}`);
+
+                // Create new meshes
+                mesh = new THREE.Mesh(subdivided, solidMaterial);
+                wireframe = new THREE.Mesh(subdivided.clone(), wireframeMaterial);
+                
+                // Restore position and rotation
+                mesh.position.copy(currentPosition);
+                mesh.rotation.copy(currentRotation);
+                wireframe.position.copy(currentPosition);
+                wireframe.rotation.copy(currentRotation);
+
+                wireframe.visible = params.wireframe;
+
+                scene.add(mesh);
+                scene.add(wireframe);
+
+                updateDimensions();
+
+            } catch (error) {
+                console.error('Error during subdivision:', error);
+                updateDebug(`Error: ${error.message}`);
+                
+                // Restore original mesh if subdivision fails
+                if (originalGeometry) {
+                    mesh = new THREE.Mesh(originalGeometry, solidMaterial);
+                    wireframe = new THREE.Mesh(originalGeometry.clone(), wireframeMaterial);
+                    scene.add(mesh);
+                    scene.add(wireframe);
+                }
+            }
+        }
+
+        function handleSTLUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    updateDebug('Loading STL file...');
+                    const loader = new THREE.STLLoader();
+                    originalGeometry = loader.parse(e.target.result);
+
+                    const triangleCount = originalGeometry.attributes.position.count / 3;
+                    updateDebug(`Loaded STL with ${triangleCount} triangles`);
+
+                    // Reset parameters
+                    params.iterations = 1;
+                    params.split = false;
+                    params.preserveEdges = true;
+                    params.flatOnly = false;
+                    params.flatShading = false;
+
+                    // Create initial mesh
+                    if (mesh) scene.remove(mesh);
+                    if (wireframe) scene.remove(wireframe);
+
+                    mesh = new THREE.Mesh(originalGeometry, solidMaterial);
+                    wireframe = new THREE.Mesh(originalGeometry.clone(), wireframeMaterial);
+                    wireframe.visible = params.wireframe;
+
+                    scene.add(mesh);
+                    scene.add(wireframe);
+
+                    // Center and scale
+                    const box = new THREE.Box3().setFromObject(mesh);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+
+                    mesh.position.sub(center);
+                    wireframe.position.copy(mesh.position);
+
+                    camera.position.set(0, 0, maxDim * 2);
+                    controls.target.copy(mesh.position);
+                    controls.update();
+
+                    updateDimensions();
+
+                } catch (error) {
+                    console.error('Error loading STL:', error);
+                    updateDebug(`Error loading STL: ${error.message}`);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function updateDimensions() {
+            if (!mesh) return;
+            const box = new THREE.Box3().setFromObject(mesh);
+            const size = box.getSize(new THREE.Vector3());
+            document.getElementById('sizeX').innerText = `Width: ${size.x.toFixed(2)} units`;
+            document.getElementById('sizeY').innerText = `Height: ${size.y.toFixed(2)} units`;
+            document.getElementById('sizeZ').innerText = `Depth: ${size.z.toFixed(2)} units`;
+        }
+
+        document.getElementById('fileInput').addEventListener('change', handleSTLUpload);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
