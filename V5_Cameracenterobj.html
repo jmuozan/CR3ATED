@@ -82,7 +82,7 @@
         };
 
         const rotation = {
-            rotateX: -90, // Default to -90 to match initial orientation
+            rotateX: 0,
             rotateY: 0,
             rotateZ: 0
         };
@@ -108,9 +108,9 @@
         displacementFolder.add(displacementSettings, 'invertDisplacement').onChange(applyDisplacement);
 
         const rotationFolder = gui.addFolder('Rotation');
-        rotationFolder.add(rotation, 'rotateX', -180, 180, 30).onChange(() => setRotation(mesh, wireframe));
-        rotationFolder.add(rotation, 'rotateY', -180, 180, 30).onChange(() => setRotation(mesh, wireframe));
-        rotationFolder.add(rotation, 'rotateZ', -180, 180, 30).onChange(() => setRotation(mesh, wireframe));
+        rotationFolder.add(rotation, 'rotateX', 0, 360, 30).onChange(() => setRotation(mesh, wireframe));
+        rotationFolder.add(rotation, 'rotateY', 0, 360, 30).onChange(() => setRotation(mesh, wireframe));
+        rotationFolder.add(rotation, 'rotateZ', 0, 360, 30).onChange(() => setRotation(mesh, wireframe));
 
         const subdivisionFolder = gui.addFolder('Subdivision');
         subdivisionFolder.add(subdivisionSettings, 'iterations', 1, 3, 1);
@@ -155,8 +155,7 @@
             const cameraDistance = (maxDim / 2) / Math.tan(fov / 2) * 1.5;
             
             // Set camera position and target
-            // Position camera slightly elevated to better show the vertical orientation
-            camera.position.set(cameraDistance * 0.5, cameraDistance * 0.5, cameraDistance);
+            camera.position.set(0, 0, cameraDistance);
             controls.target.copy(center);
             
             // Update controls and camera
@@ -186,27 +185,13 @@
                     wireframe = new THREE.Mesh(geometry.clone(), wireframeMaterial);
                     wireframe.visible = false;
 
-                    // Rotate mesh to make Z vertical
-                    mesh.rotation.x = -Math.PI / 2;
-                    wireframe.rotation.x = -Math.PI / 2;
-
                     scene.add(mesh);
                     scene.add(wireframe);
-
-                    // Reset rotation values in the GUI
-                    rotation.rotateX = -90;
-                    rotation.rotateY = 0;
-                    rotation.rotateZ = 0;
-
-                    // Update GUI controllers
-                    for (let i in rotationFolder.__controllers) {
-                        rotationFolder.__controllers[i].updateDisplay();
-                    }
 
                     applyScaling();
                     applyDisplacement();
                     updateDimensions();
-                    centerCamera();
+                    centerCamera(); // Auto-center on load
                 };
                 reader.readAsArrayBuffer(file);
             }
@@ -250,6 +235,7 @@
                 wireframe.rotation.copy(currentRotation);
                 wireframe.position.copy(currentPosition);
                 
+                // Add to scene
                 scene.add(mesh);
                 scene.add(wireframe);
                 
