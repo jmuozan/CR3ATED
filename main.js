@@ -1,3 +1,5 @@
+import { performSubdivision } from '/js/performSubdivision.js';
+
 // Scene setup
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -193,58 +195,30 @@ function handleSTLUpload(event) {
     }
 }
 
-function performSubdivision() {
-    if (!mesh) return;
+subdivisionSettings.subdivide = function() {
+    const result = performSubdivision(
+        mesh, 
+        wireframe, 
+        subdivisionSettings, 
+        displacementTexture, 
+        applyDisplacement, 
+        updateDimensions
+    );
     
-    try {
-        // Store current states
-        const currentScale = mesh.scale.clone();
-        const currentRotation = mesh.rotation.clone();
-        const currentPosition = mesh.position.clone();
-        
-        // Get the original geometry
-        const geometry = mesh.geometry.clone();
-        
-        // Perform subdivision
-        const subdivided = LoopSubdivision.modify(geometry, subdivisionSettings.iterations, {
-            split: subdivisionSettings.split,
-            preserveEdges: subdivisionSettings.preserveEdges,
-            flatOnly: subdivisionSettings.flatOnly
-        });
-
-        // Store original positions for displacement
-        subdivided.originalPositions = subdivided.attributes.position.array.slice();
-        
+    if (result) {
         // Remove existing meshes
         scene.remove(mesh);
         scene.remove(wireframe);
         
-        // Create new meshes with subdivided geometry
-        mesh = new THREE.Mesh(subdivided, solidMaterial);
-        wireframe = new THREE.Mesh(subdivided.clone(), wireframeMaterial);
+        // Update mesh references
+        mesh = result.mesh;
+        wireframe = result.wireframe;
         
-        // Restore transformations
-        mesh.scale.copy(currentScale);
-        mesh.rotation.copy(currentRotation);
-        mesh.position.copy(currentPosition);
-        wireframe.scale.copy(currentScale);
-        wireframe.rotation.copy(currentRotation);
-        wireframe.position.copy(currentPosition);
-        
+        // Add new meshes to scene
         scene.add(mesh);
         scene.add(wireframe);
-        
-        // Reapply displacement if texture exists
-        if (displacementTexture) {
-            applyDisplacement();
-        }
-        
-        updateDimensions();
-        
-    } catch (error) {
-        console.error('Subdivision error:', error);
     }
-}
+};
 
 function handleImageUpload(event) {
     const file = event.target.files[0];
