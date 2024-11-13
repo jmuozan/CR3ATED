@@ -1,4 +1,4 @@
-import { performSubdivision } from '/js/performSubdivision.js';
+import { performSubdivision } from './js/performSubdivision.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -68,7 +68,24 @@ const subdivisionSettings = {
     split: false,
     preserveEdges: true,
     flatOnly: false,
-    subdivide: function() { performSubdivision(); }
+    subdivide: function() {
+        const result = performSubdivision({
+            mesh,
+            wireframe,
+            scene,
+            solidMaterial,
+            wireframeMaterial,
+            subdivisionSettings: this,
+            displacementTexture,
+            updateDimensions,
+            applyDisplacement
+        });
+        
+        if (result) {
+            mesh = result.mesh;
+            wireframe = result.wireframe;
+        }
+    }
 };
 
 // GUI Setup
@@ -194,31 +211,6 @@ function handleSTLUpload(event) {
         reader.readAsArrayBuffer(file);
     }
 }
-
-subdivisionSettings.subdivide = function() {
-    const result = performSubdivision(
-        mesh, 
-        wireframe, 
-        subdivisionSettings, 
-        displacementTexture, 
-        applyDisplacement, 
-        updateDimensions
-    );
-    
-    if (result) {
-        // Remove existing meshes
-        scene.remove(mesh);
-        scene.remove(wireframe);
-        
-        // Update mesh references
-        mesh = result.mesh;
-        wireframe = result.wireframe;
-        
-        // Add new meshes to scene
-        scene.add(mesh);
-        scene.add(wireframe);
-    }
-};
 
 function handleImageUpload(event) {
     const file = event.target.files[0];

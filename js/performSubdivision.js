@@ -1,29 +1,18 @@
-import * as THREE from 'three';
-import { LoopSubdivision } from 'three-subdivide';
+// Since THREE is loaded globally via script tag, we don't import it
+// The LoopSubdivision is also loaded globally, so we don't import it
 
-/**
- * Performs subdivision on a mesh geometry based on provided settings
- * @param {THREE.Mesh} mesh - The mesh to subdivide
- * @param {THREE.Mesh} wireframe - The wireframe mesh
- * @param {Object} subdivisionSettings - Settings for subdivision
- * @param {number} subdivisionSettings.iterations - Number of subdivision iterations
- * @param {boolean} subdivisionSettings.split - Whether to split faces
- * @param {boolean} subdivisionSettings.preserveEdges - Whether to preserve edges
- * @param {boolean} subdivisionSettings.flatOnly - Whether to use flat subdivision
- * @param {THREE.Texture} displacementTexture - Optional displacement texture
- * @param {Function} applyDisplacement - Function to apply displacement
- * @param {Function} updateDimensions - Function to update dimensions display
- * @returns {Object} The new mesh and wireframe objects
- */
-export function performSubdivision(
-    mesh, 
-    wireframe, 
-    subdivisionSettings, 
-    displacementTexture, 
-    applyDisplacement, 
-    updateDimensions
-) {
-    if (!mesh) return null;
+export function performSubdivision({
+    mesh,
+    wireframe,
+    scene,
+    solidMaterial,
+    wireframeMaterial,
+    subdivisionSettings,
+    displacementTexture,
+    updateDimensions,
+    applyDisplacement
+}) {
+    if (!mesh) return;
     
     try {
         // Store current states
@@ -44,9 +33,13 @@ export function performSubdivision(
         // Store original positions for displacement
         subdivided.originalPositions = subdivided.attributes.position.array.slice();
         
+        // Remove existing meshes
+        scene.remove(mesh);
+        scene.remove(wireframe);
+        
         // Create new meshes with subdivided geometry
-        const newMesh = new THREE.Mesh(subdivided, mesh.material);
-        const newWireframe = new THREE.Mesh(subdivided.clone(), wireframe.material);
+        const newMesh = new THREE.Mesh(subdivided, solidMaterial);
+        const newWireframe = new THREE.Mesh(subdivided.clone(), wireframeMaterial);
         
         // Restore transformations
         newMesh.scale.copy(currentScale);
@@ -56,6 +49,9 @@ export function performSubdivision(
         newWireframe.rotation.copy(currentRotation);
         newWireframe.position.copy(currentPosition);
         
+        scene.add(newMesh);
+        scene.add(newWireframe);
+        
         // Reapply displacement if texture exists
         if (displacementTexture) {
             applyDisplacement();
@@ -63,7 +59,10 @@ export function performSubdivision(
         
         updateDimensions();
         
-        return { mesh: newMesh, wireframe: newWireframe };
+        return {
+            mesh: newMesh,
+            wireframe: newWireframe
+        };
         
     } catch (error) {
         console.error('Subdivision error:', error);
