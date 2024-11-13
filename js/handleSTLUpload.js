@@ -78,3 +78,19 @@ export function handleSTLUpload({
     }
     return null;
 }
+
+export function downloadSTL(currentMesh) {
+    if (!currentMesh) return;
+    
+    const exporter = new THREE.STLExporter();
+    const stlData = exporter.parse(currentMesh);
+
+    const blob = new Blob([stlData], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.href = URL.createObjectURL(blob);
+    link.download = 'mesh.stl';
+    link.click();
+    document.body.removeChild(link);
+}

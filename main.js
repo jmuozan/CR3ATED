@@ -1,5 +1,5 @@
 import { performSubdivision } from './js/performSubdivision.js';
-import { handleSTLUpload } from './js/handleSTLUpload.js';
+import { handleSTLUpload, downloadSTL } from './js/handleSTLUpload.js';
 import { applyDisplacement } from './js/displacementMap.js';
 
 let currentMesh = null;
@@ -139,7 +139,7 @@ subdivisionFolder.add(subdivisionSettings, 'subdivide').name('Apply Subdivision'
 addGUIMenuButton(gui, 'Toggle Wireframe', toggleWireframe);
 addGUIMenuButton(gui, 'Upload STL', () => document.getElementById('stlFile').click());
 addGUIMenuButton(gui, 'Upload Image', () => document.getElementById('imageFile').click());
-addGUIMenuButton(gui, 'Download STL', downloadSTL);
+addGUIMenuButton(gui, 'Download STL', () => downloadSTL(currentMesh));
 addGUIMenuButton(gui, 'Center Camera', centerCamera);
 
 // Open folders by default
@@ -254,21 +254,6 @@ function setRotation(mesh, wireframeMesh) {
 
     mesh.rotation.set(radiansX, radiansY, radiansZ);
     wireframeMesh.rotation.set(radiansX, radiansY, radiansZ);
-}
-
-function downloadSTL() {
-    if (!mesh) return;
-    const exporter = new THREE.STLExporter();
-    const stlData = exporter.parse(mesh);
-
-    const blob = new Blob([stlData], { type: 'text/plain' });
-    const link = document.createElement('a');
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.href = URL.createObjectURL(blob);
-    link.download = 'mesh.stl';
-    link.click();
-    document.body.removeChild(link);
 }
 
 function updateDimensions() {
