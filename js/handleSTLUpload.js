@@ -1,3 +1,5 @@
+import { applyScaling, updateDimensions } from './scaling.js';
+
 export function handleSTLUpload({
     event,
     scene,
@@ -7,14 +9,13 @@ export function handleSTLUpload({
     wireframeMaterial,
     rotation,
     rotationFolder,
-    applyScaling,
     applyDisplacement,
-    updateDimensions,
     centerCamera,
     currentMesh,
     currentWireframe,
     displacementTexture,
-    displacementSettings
+    displacementSettings,
+    scaleFactors
 }) {
     const file = event.target.files[0];
     if (file) {
@@ -60,7 +61,14 @@ export function handleSTLUpload({
                     // Call the callback with the new meshes first
                     callback(newMesh, newWireframe);
 
-                    applyScaling();
+                    // Apply transformations
+                    applyScaling({
+                        currentMesh: newMesh,
+                        currentWireframe: newWireframe,
+                        scaleFactors,
+                        updateDimensions: () => updateDimensions(newMesh)
+                    });
+
                     if (applyDisplacement && displacementTexture) {
                         applyDisplacement({
                             currentMesh: newMesh,
@@ -69,7 +77,7 @@ export function handleSTLUpload({
                             displacementSettings
                         });
                     }
-                    updateDimensions();
+
                     centerCamera();
                 };
                 reader.readAsArrayBuffer(file);
