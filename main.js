@@ -1,5 +1,6 @@
 import { performSubdivision } from './js/performSubdivision.js';
 import { handleSTLUpload } from './js/handleSTLUpload.js';
+import { applyDisplacement } from './js/displacementMap.js';
 
 let currentMesh = null;
 let currentWireframe = null;
@@ -104,8 +105,22 @@ scaleFolder.add(scaleFactors, 'scaleY', 0.1, 10).step(0.01).onChange(applyScalin
 scaleFolder.add(scaleFactors, 'scaleZ', 0.1, 10).step(0.01).onChange(applyScaling);
 
 const displacementFolder = gui.addFolder('Displacement');
-displacementFolder.add(displacementSettings, 'displacementScale', 0, 1, 0.01).onChange(applyDisplacement);
-displacementFolder.add(displacementSettings, 'invertDisplacement').onChange(applyDisplacement);
+displacementFolder.add(displacementSettings, 'displacementScale', 0, 1, 0.01).onChange(() => {
+    applyDisplacement({
+        currentMesh,
+        currentWireframe,
+        displacementTexture,
+        displacementSettings
+    });
+});
+displacementFolder.add(displacementSettings, 'invertDisplacement').onChange(() => {
+    applyDisplacement({
+        currentMesh,
+        currentWireframe,
+        displacementTexture,
+        displacementSettings
+    });
+});
 displacementFolder.add(displacementSettings, 'flipUV').name('Flip UV').onChange(reapplyDisplacement);
 
 const rotationFolder = gui.addFolder('Rotation');
@@ -147,7 +162,11 @@ document.getElementById('stlFile').addEventListener('change', (event) => {
         applyScaling,
         applyDisplacement,
         updateDimensions,
-        centerCamera
+        centerCamera,
+        currentMesh,
+        currentWireframe,
+        displacementTexture,
+        displacementSettings
     });
     
     if (result && result.onload) {
@@ -162,8 +181,13 @@ document.getElementById('stlFile').addEventListener('change', (event) => {
 document.getElementById('imageFile').addEventListener('change', handleImageUpload);
 
 function reapplyDisplacement() {
-    if (mesh && displacementTexture) {
-        applyDisplacement();
+    if (currentMesh && displacementTexture) {
+        applyDisplacement({
+            currentMesh,
+            currentWireframe,
+            displacementTexture,
+            displacementSettings
+        });
     }
 }
 
@@ -175,22 +199,17 @@ function addGUIMenuButton(gui, name, onClickCallback) {
 function centerCamera() {
     if (!mesh) return;
     
-    // Get the bounding box of the mesh
     const boundingBox = new THREE.Box3().setFromObject(mesh);
     const center = boundingBox.getCenter(new THREE.Vector3());
     const size = boundingBox.getSize(new THREE.Vector3());
     
-    // Calculate the distance based on the size of the object
     const maxDim = Math.max(size.x, size.y, size.z);
     const fov = camera.fov * (Math.PI / 180);
     const cameraDistance = (maxDim / 2) / Math.tan(fov / 2) * 1.5;
     
-    // Set camera position and target
-    // Position camera slightly elevated to better show the vertical orientation
     camera.position.set(cameraDistance * 0.5, cameraDistance * 0.5, cameraDistance);
     controls.target.copy(center);
     
-    // Update controls and camera
     controls.update();
     camera.updateProjectionMatrix();
 }
@@ -202,7 +221,12 @@ function handleImageUpload(event) {
         const textureLoader = new THREE.TextureLoader();
         textureLoader.load(url, (texture) => {
             displacementTexture = texture;
-            applyDisplacement();
+            applyDisplacement({
+                currentMesh,
+                currentWireframe,
+                displacementTexture,
+                displacementSettings
+            });
         });
     }
 }
@@ -211,146 +235,6 @@ function toggleWireframe() {
     if (wireframe) {
         wireframe.visible = !wireframe.visible;
     }
-}
-
-function applyDisplacement() {
-    if (displacementTexture && mesh) {
-        const scale = displacementSettings.displacementScale * 
-            (displacementSettings.invertDisplacement ? -1 : 1);
-        resetGeometry(mesh.geometry);
-        resetGeometry(wireframe.geometry);
-        applyDisplacementMap(mesh.geometry, displacementTexture, scale);
-        applyDisplacementMap(wireframe.geometry, displacementTexture, scale);
-    }
-}
-
-function resetGeometry(geometry) {
-    if (geometry.originalPositions) {
-        const position = geometry.attributes.position;
-        position.array.set(geometry.originalPositions);
-        position.needsUpdate = true;
-        geometry.computeVertexNormals();
-    }
-}
-
-function applyDisplacementMap(geometry, texture, scale) {
-    if (!texture || !geometry) return geometry;
-    
-    geometry.computeVertexNormals();
-
-    const position = geometry.attributes.position;
-    const normals = geometry.attributes.normal;
-    const uv = generateUVs(geometry);
-    const dispMap = texture.image;
-
-    if (!dispMap) return geometry;
-
-    // Create canvas and get image data
-    const canvas = document.createElement('canvas');
-    canvas.width = dispMap.width;
-    canvas.height = dispMap.height;
-    const context = canvas.getContext('2d');
-    context.drawImage(dispMap, 0, 0);
-    const imageData = context.getImageData(0, 0, dispMap.width, dispMap.height);
-    const data = imageData.data;
-
-    // Create a map to store vertex data using a more precise key
-    const vertexMap = new Map();
-    const positionArray = position.array;
-    
-    // First pass: gather all unique vertices and their displacements
-    for (let i = 0; i < position.count; i++) {
-        const x = positionArray[i * 3];
-        const y = positionArray[i * 3 + 1];
-        const z = positionArray[i * 3 + 2];
-        
-        // Create a unique key for this vertex position
-        const key = `${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`;
-        
-        // Get UV coordinates and calculate displacement
-        const ux = Math.floor(uv.getX(i) * dispMap.width);
-        const uy = Math.floor(uv.getY(i) * dispMap.height);
-        const pixelIndex = (uy * dispMap.width + ux) * 4;
-        const displacement = (data[pixelIndex] / 255) * scale;
-        
-        if (!vertexMap.has(key)) {
-            vertexMap.set(key, {
-                indices: [i],
-                displacement: displacement,
-                normal: new THREE.Vector3(
-                    normals.getX(i),
-                    normals.getY(i),
-                    normals.getZ(i)
-                )
-            });
-        } else {
-            const entry = vertexMap.get(key);
-            entry.indices.push(i);
-            entry.displacement = (entry.displacement * entry.indices.length + displacement) / (entry.indices.length + 1);
-            entry.normal.add(new THREE.Vector3(
-                normals.getX(i),
-                normals.getY(i),
-                normals.getZ(i)
-            ));
-        }
-    }
-
-    // Second pass: apply averaged displacements to all vertices
-    vertexMap.forEach(vertexData => {
-        // Normalize the accumulated normal vector
-        vertexData.normal.normalize();
-        
-        // Apply the same displacement to all instances of this vertex
-        vertexData.indices.forEach(index => {
-            position.setXYZ(
-                index,
-                positionArray[index * 3] + vertexData.normal.x * vertexData.displacement,
-                positionArray[index * 3 + 1] + vertexData.normal.y * vertexData.displacement,
-                positionArray[index * 3 + 2] + vertexData.normal.z * vertexData.displacement
-            );
-        });
-    });
-
-    position.needsUpdate = true;
-    geometry.computeVertexNormals();
-    return geometry;
-}
-
-function generateUVs(geometry) {
-    const position = geometry.attributes.position;
-    const box = new THREE.Box3().setFromBufferAttribute(position);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-
-    const uv = new THREE.BufferAttribute(new Float32Array(position.count * 2), 2);
-    const vertexUVs = new Map();
-    const positionArray = position.array;
-
-    for (let i = 0; i < position.count; i++) {
-        const x = positionArray[i * 3];
-        const y = positionArray[i * 3 + 1];
-        const z = positionArray[i * 3 + 2];
-        
-        const key = `${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`;
-        
-        if (!vertexUVs.has(key)) {
-            let uvX = (x - box.min.x) / size.x;
-            let uvY = (z - box.min.z) / size.z;
-            
-            if (displacementSettings.flipUV) {
-                uvX = 1 - uvX;
-                uvY = 1 - uvY;
-            }
-            
-            vertexUVs.set(key, { x: uvX, y: uvY });
-        }
-        
-        const uvData = vertexUVs.get(key);
-        uv.setXY(i, uvData.x, uvData.y);
-    }
-
-    geometry.setAttribute('uv', uv);
-    return uv;
 }
 
 function applyScaling() {

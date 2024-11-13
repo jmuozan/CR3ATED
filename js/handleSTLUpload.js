@@ -10,13 +10,16 @@ export function handleSTLUpload({
     applyScaling,
     applyDisplacement,
     updateDimensions,
-    centerCamera
+    centerCamera,
+    currentMesh,
+    currentWireframe,
+    displacementTexture,
+    displacementSettings
 }) {
     const file = event.target.files[0];
     if (file) {
         const reader = new FileReader();
         
-        // Return an object with an onload handler that can be used to update the meshes
         return {
             onload: (callback) => {
                 reader.onload = function (e) {
@@ -54,13 +57,20 @@ export function handleSTLUpload({
                         rotationFolder.__controllers[i].updateDisplay();
                     }
 
+                    // Call the callback with the new meshes first
+                    callback(newMesh, newWireframe);
+
                     applyScaling();
-                    applyDisplacement();
+                    if (applyDisplacement && displacementTexture) {
+                        applyDisplacement({
+                            currentMesh: newMesh,
+                            currentWireframe: newWireframe,
+                            displacementTexture,
+                            displacementSettings
+                        });
+                    }
                     updateDimensions();
                     centerCamera();
-
-                    // Call the callback with the new meshes
-                    callback(newMesh, newWireframe);
                 };
                 reader.readAsArrayBuffer(file);
             }
