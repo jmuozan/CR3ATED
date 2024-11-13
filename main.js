@@ -1,4 +1,9 @@
 import { performSubdivision } from './js/performSubdivision.js';
+import { handleSTLUpload } from './js/handleSTLUpload.js';
+
+let currentMesh = null;
+let currentWireframe = null;
+
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -70,8 +75,8 @@ const subdivisionSettings = {
     flatOnly: false,
     subdivide: function() {
         const result = performSubdivision({
-            mesh,
-            wireframe,
+            mesh: currentMesh,
+            wireframe: currentWireframe,
             scene,
             solidMaterial,
             wireframeMaterial,
@@ -82,8 +87,10 @@ const subdivisionSettings = {
         });
         
         if (result) {
-            mesh = result.mesh;
-            wireframe = result.wireframe;
+            currentMesh = result.mesh;
+            currentWireframe = result.wireframe;
+            mesh = currentMesh;  // Update the global mesh reference
+            wireframe = currentWireframe;  // Update the global wireframe reference
         }
     }
 };
@@ -127,7 +134,31 @@ rotationFolder.open();
 subdivisionFolder.open();
 
 // Event Listeners
-document.getElementById('stlFile').addEventListener('change', handleSTLUpload);
+document.getElementById('stlFile').addEventListener('change', (event) => {
+    const result = handleSTLUpload({
+        event,
+        scene,
+        mesh: currentMesh,
+        wireframe: currentWireframe,
+        solidMaterial,
+        wireframeMaterial,
+        rotation,
+        rotationFolder,
+        applyScaling,
+        applyDisplacement,
+        updateDimensions,
+        centerCamera
+    });
+    
+    if (result && result.onload) {
+        result.onload((newMesh, newWireframe) => {
+            currentMesh = newMesh;
+            currentWireframe = newWireframe;
+            mesh = currentMesh;  // Update the global mesh reference
+            wireframe = currentWireframe;  // Update the global wireframe reference
+        });
+    }
+});
 document.getElementById('imageFile').addEventListener('change', handleImageUpload);
 
 function reapplyDisplacement() {
@@ -162,54 +193,6 @@ function centerCamera() {
     // Update controls and camera
     controls.update();
     camera.updateProjectionMatrix();
-}
-
-function handleSTLUpload(event) {
-    const file = event.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-            const loader = new THREE.STLLoader();
-            const geometry = loader.parse(e.target.result);
-
-            if (mesh) {
-                scene.remove(mesh);
-                scene.remove(wireframe);
-            }
-
-            geometry.computeVertexNormals();
-            
-            // Store original positions
-            geometry.originalPositions = geometry.attributes.position.array.slice();
-
-            mesh = new THREE.Mesh(geometry, solidMaterial);
-            wireframe = new THREE.Mesh(geometry.clone(), wireframeMaterial);
-            wireframe.visible = false;
-
-            // Rotate mesh to make Z vertical
-            mesh.rotation.x = -Math.PI / 2;
-            wireframe.rotation.x = -Math.PI / 2;
-
-            scene.add(mesh);
-            scene.add(wireframe);
-
-            // Reset rotation values in the GUI
-            rotation.rotateX = -90;
-            rotation.rotateY = 0;
-            rotation.rotateZ = 0;
-
-            // Update GUI controllers
-            for (let i in rotationFolder.__controllers) {
-                rotationFolder.__controllers[i].updateDisplay();
-            }
-
-            applyScaling();
-            applyDisplacement();
-            updateDimensions();
-            centerCamera();
-        };
-        reader.readAsArrayBuffer(file);
-    }
 }
 
 function handleImageUpload(event) {
