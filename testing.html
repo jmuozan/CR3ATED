@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drawing Board</title>
+    <!-- Add Three.js dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/STLExporter.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <button id="openDrawing">Open Drawing Board</button>
+
+    <div id="drawingModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            
+            <div class="controls">
+                <button id="penTool">✏️ Pen</button>
+                <button id="rectangleTool">⬜ Rectangle</button>
+                <button id="circleTool">⭕ Circle</button>
+                <button id="smoothTool">🔄 Smooth Path</button>
+                <button id="clearCanvas">Clear</button>
+                <button id="exportSVG">Export SVG</button>
+                <button id="preview3D">3D Preview</button>
+                <button id="exportSTL" style="display: none;">Export STL</button>
+            </div>
+
+            <div class="canvas-container">
+                <svg id="drawing-area" viewBox="0 0 550 400">
+                    <line x1="275" y1="0" x2="275" y2="400" 
+                          stroke="#666" stroke-width="1" stroke-dasharray="5,5"></line>
+                </svg>
+                <div id="preview-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
