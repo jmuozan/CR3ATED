@@ -124,3 +124,12 @@
     min-width: 40px;
     font-size: 14px;
 }
+/* Update modal z-index */
+.modal {
+    z-index: 1000;  /* Make sure this is lower than the GUI's z-index */
+}
+
+/* Ensure GUI stays visible */
+.dg.main {
+    z-index: 1001 !important;
+}

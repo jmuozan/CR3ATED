@@ -9,9 +9,17 @@ export function initializeGUI({
     onSubdivisionChange,
     toggleWireframe,
     downloadSTL,
-    centerCamera
+    centerCamera,
+    openDrawingBoard
 }) {
     const gui = new dat.GUI();
+    
+    // Set GUI position and ensure it stays on top
+    const guiContainer = gui.domElement.parentElement;
+    guiContainer.style.position = 'absolute';
+    guiContainer.style.top = '0';
+    guiContainer.style.right = '0';
+    guiContainer.style.zIndex = '1001'; // Higher than the modal z-index
 
     // Scale Folder
     const scaleFolder = gui.addFolder('Scale');
@@ -48,6 +56,7 @@ export function initializeGUI({
 
     // Action Buttons
     const actions = {
+        'Draw Piece': openDrawingBoard,
         'Toggle Wireframe': toggleWireframe,
         'Upload STL': () => document.getElementById('stlFile').click(),
         'Upload Image': () => document.getElementById('imageFile').click(),

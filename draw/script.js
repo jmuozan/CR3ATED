@@ -1,7 +1,7 @@
-document.addEventListener('DOMContentLoaded', function() {
+// Initialize the drawing functionality
+const initializeDrawing = () => {
     // DOM Elements
     const modal = document.getElementById('drawingModal');
-    const openBtn = document.getElementById('openDrawing');
     const closeBtn = document.querySelector('.close');
     const svg = document.getElementById('drawing-area');
     const previewContainer = document.getElementById('preview-container');
@@ -37,15 +37,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const BEZIER_SMOOTHING = true;
 
     // Point density control
-    pointDensitySlider.addEventListener('input', function(e) {
-        SMOOTHING_DISTANCE = parseInt(e.target.value);
-        densityValueDisplay.textContent = `${SMOOTHING_DISTANCE}px`;
-        
-        if (currentShape && currentTool === 'pen' && rawPoints.length > 0) {
-            const smoothedPath = smoothPath(rawPoints);
-            currentShape.setAttribute("d", typeof smoothedPath === 'string' ? smoothedPath : smoothedPath.join(" "));
-        }
-    });
+    if (pointDensitySlider) {
+        pointDensitySlider.addEventListener('input', function(e) {
+            SMOOTHING_DISTANCE = parseInt(e.target.value);
+            densityValueDisplay.textContent = `${SMOOTHING_DISTANCE}px`;
+            
+            if (currentShape && currentTool === 'pen' && rawPoints.length > 0) {
+                const smoothedPath = smoothPath(rawPoints);
+                currentShape.setAttribute("d", typeof smoothedPath === 'string' ? smoothedPath : smoothedPath.join(" "));
+            }
+        });
+    }
 
     // Utility Functions
     function distanceBetweenPoints(p1, p2) {
@@ -86,7 +88,6 @@ document.addEventListener('DOMContentLoaded', function() {
             smoothedPath += ` C ${controlPoint1.x},${controlPoint1.y} ${controlPoint2.x},${controlPoint2.y} ${p2.x},${p2.y}`;
         }
 
-        // Add the last two points if they exist
         if (filteredPoints.length > 2) {
             const lastPoints = filteredPoints.slice(-2);
             smoothedPath += ` L ${lastPoints[0].x},${lastPoints[0].y} L ${lastPoints[1].x},${lastPoints[1].y}`;
@@ -94,19 +95,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         return smoothedPath;
     }
-
-    // Modal controls
-    openBtn.onclick = () => modal.style.display = "block";
-    closeBtn.onclick = () => {
-        modal.style.display = "none";
-        if (renderer) renderer.dispose();
-    };
-    window.onclick = (e) => {
-        if (e.target == modal) {
-            modal.style.display = "none";
-            if (renderer) renderer.dispose();
-        }
-    };
 
     // Tool selection
     Object.entries(tools).forEach(([name, button]) => {
@@ -239,7 +227,7 @@ document.addEventListener('DOMContentLoaded', function() {
             renderer.dispose();
             renderer = null;
         }
-        tools.exportSTL.style.display = 'none';
+        if (tools.exportSTL) tools.exportSTL.style.display = 'none';
     }
 
     // 3D Preview Functions
@@ -287,7 +275,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 for (let i = 0; i <= numPoints; i++) {
                     const point = shape.getPointAtLength((i / numPoints) * pathLength);
                     if (point.x >= centerX) {
-                        // Swap Y and Z coordinates for the 90-degree rotation
                         points.push(new THREE.Vector2(point.x - centerX, point.y));
                     }
                 }
@@ -308,7 +295,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const segments = Math.max(32, Math.floor(64 / SMOOTHING_DISTANCE));
         const geometry = new THREE.LatheGeometry(points, segments);
         
-        // Rotate the geometry 90 degrees around X axis
         geometry.rotateX(-Math.PI / 2);
 
         const material = new THREE.MeshPhongMaterial({
@@ -325,7 +311,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const size = bbox.getSize(new THREE.Vector3());
         const maxDim = Math.max(size.x, size.y, size.z);
         
-        // Adjust camera position for rotated view
         camera.position.set(maxDim * 2, maxDim * 2, maxDim);
         camera.lookAt(center);
         controls.target.copy(center);
@@ -340,7 +325,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         svg.style.display = 'none';
         previewContainer.style.display = 'block';
-        tools.exportSTL.style.display = 'inline-block';
+        if (tools.exportSTL) tools.exportSTL.style.display = 'inline-block';
 
         if (!renderer) {
             init3DScene();
@@ -380,6 +365,7 @@ document.addEventListener('DOMContentLoaded', function() {
     svg.addEventListener('mouseup', stopDrawing);
     svg.addEventListener('mouseleave', stopDrawing);
 
+    // Window resize handler
     window.addEventListener('resize', () => {
         if (renderer) {
             camera.aspect = previewContainer.clientWidth / previewContainer.clientHeight;
@@ -389,5 +375,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Set pen tool as active by default
-    tools.pen.classList.add('active');
-});
+    if (tools.pen) tools.pen.classList.add('active');
+};
+
+// Initialize when imported
+initializeDrawing();
+
+// Export for use in other modules
+export default initializeDrawing;
