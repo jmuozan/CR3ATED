@@ -15,23 +15,24 @@
 
     <div id="drawingModal" class="modal">
         <div class="modal-content">
-            <span class="close">&times;</span>
+            <span class="close">×</span>
             
             <div class="controls">
                 <button id="penTool">✏️ Pen</button>
-                <button id="rectangleTool">⬜ Rectangle</button>
-                <button id="circleTool">⭕ Circle</button>
-                <button id="smoothTool">🔄 Smooth Path</button>
+                <div class="control-group">
+                    <label for="pointDensity">Points Density:</label>
+                    <input type="range" id="pointDensity" min="1" max="20" value="5" />
+                    <span id="densityValue">5px</span>
+                </div>
                 <button id="clearCanvas">Clear</button>
                 <button id="exportSVG">Export SVG</button>
                 <button id="preview3D">3D Preview</button>
                 <button id="exportSTL" style="display: none;">Export STL</button>
             </div>
-
+    
             <div class="canvas-container">
-                <svg id="drawing-area" viewBox="0 0 550 400">
-                    <line x1="275" y1="0" x2="275" y2="400" 
-                          stroke="#666" stroke-width="1" stroke-dasharray="5,5"></line>
+                <svg id="drawing-area" viewbox="0 0 550 400">
+                    <line x1="275" y1="0" x2="275" y2="400" stroke="#666" stroke-width="1" stroke-dasharray="5,5"></line>
                 </svg>
                 <div id="preview-container"></div>
             </div>

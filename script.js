@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeBtn = document.querySelector('.close');
     const svg = document.getElementById('drawing-area');
     const previewContainer = document.getElementById('preview-container');
+    const pointDensitySlider = document.getElementById('pointDensity');
+    const densityValueDisplay = document.getElementById('densityValue');
     
     // Tool buttons
     const tools = {
@@ -24,10 +26,74 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentShape = null;
     let startPoint = null;
     let pathPoints = [];
+    let rawPoints = [];
     let shapes = [];
 
     // Three.js variables
     let scene, camera, renderer, controls, latheObject;
+
+    // Smoothing configuration
+    let SMOOTHING_DISTANCE = 5;
+    const BEZIER_SMOOTHING = true;
+
+    // Point density control
+    pointDensitySlider.addEventListener('input', function(e) {
+        SMOOTHING_DISTANCE = parseInt(e.target.value);
+        densityValueDisplay.textContent = `${SMOOTHING_DISTANCE}px`;
+        
+        if (currentShape && currentTool === 'pen' && rawPoints.length > 0) {
+            const smoothedPath = smoothPath(rawPoints);
+            currentShape.setAttribute("d", typeof smoothedPath === 'string' ? smoothedPath : smoothedPath.join(" "));
+        }
+    });
+
+    // Utility Functions
+    function distanceBetweenPoints(p1, p2) {
+        return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+    }
+
+    function smoothPath(points) {
+        if (points.length < 3) return points;
+
+        let filteredPoints = [points[0]];
+        let lastPoint = points[0];
+
+        for (let i = 1; i < points.length; i++) {
+            if (distanceBetweenPoints(lastPoint, points[i]) >= SMOOTHING_DISTANCE) {
+                filteredPoints.push(points[i]);
+                lastPoint = points[i];
+            }
+        }
+
+        if (!BEZIER_SMOOTHING) return filteredPoints;
+
+        let smoothedPath = `M ${filteredPoints[0].x} ${filteredPoints[0].y}`;
+        
+        for (let i = 1; i < filteredPoints.length - 2; i++) {
+            const p0 = filteredPoints[i - 1];
+            const p1 = filteredPoints[i];
+            const p2 = filteredPoints[i + 1];
+            
+            const controlPoint1 = {
+                x: p1.x - (p2.x - p0.x) / 6,
+                y: p1.y - (p2.y - p0.y) / 6
+            };
+            const controlPoint2 = {
+                x: p2.x + (p1.x - p2.x) / 6,
+                y: p2.y + (p1.y - p2.y) / 6
+            };
+            
+            smoothedPath += ` C ${controlPoint1.x},${controlPoint1.y} ${controlPoint2.x},${controlPoint2.y} ${p2.x},${p2.y}`;
+        }
+
+        // Add the last two points if they exist
+        if (filteredPoints.length > 2) {
+            const lastPoints = filteredPoints.slice(-2);
+            smoothedPath += ` L ${lastPoints[0].x},${lastPoints[0].y} L ${lastPoints[1].x},${lastPoints[1].y}`;
+        }
+
+        return smoothedPath;
+    }
 
     // Modal controls
     openBtn.onclick = () => modal.style.display = "block";
@@ -89,6 +155,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 currentShape.setAttribute("fill", "none");
                 currentShape.setAttribute("stroke", "black");
                 currentShape.setAttribute("stroke-width", "2");
+                rawPoints = [point];
                 pathPoints = [`M ${point.x} ${point.y}`];
                 break;
             case 'rectangle':
@@ -121,8 +188,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
         switch (currentTool) {
             case 'pen':
-                pathPoints.push(`L ${point.x} ${point.y}`);
-                currentShape.setAttribute("d", pathPoints.join(" "));
+                rawPoints.push(point);
+                if (BEZIER_SMOOTHING) {
+                    const smoothedPath = smoothPath(rawPoints);
+                    currentShape.setAttribute("d", typeof smoothedPath === 'string' ? smoothedPath : smoothedPath.join(" "));
+                } else {
+                    pathPoints.push(`L ${point.x} ${point.y}`);
+                    currentShape.setAttribute("d", pathPoints.join(" "));
+                }
                 break;
             case 'rectangle':
                 const width = point.x - startPoint.x;
@@ -143,16 +216,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function stopDrawing() {
+        if (isDrawing && currentTool === 'pen') {
+            const finalPath = smoothPath(rawPoints);
+            currentShape.setAttribute("d", typeof finalPath === 'string' ? finalPath : finalPath.join(" "));
+        }
         isDrawing = false;
         currentShape = null;
         startPoint = null;
+        rawPoints = [];
     }
 
-    // Clear canvas
     function clearCanvas() {
         shapes.forEach(shape => shape.remove());
         shapes = [];
         pathPoints = [];
+        rawPoints = [];
         if (previewContainer.style.display === 'block') {
             previewContainer.style.display = 'none';
             svg.style.display = 'block';
@@ -199,19 +277,20 @@ document.addEventListener('DOMContentLoaded', function() {
         if (shapes.length === 0) return;
 
         const points = [];
-        const centerX = 275; // Center line x-coordinate
+        const centerX = 275;
 
         shapes.forEach(shape => {
             if (shape.tagName === 'path') {
-                const pathData = shape.getAttribute('d');
-                const pathPoints = pathData.split(/[ML]\s*/).filter(Boolean);
-                pathPoints.forEach(point => {
-                    const [x, y] = point.split(/\s+/).map(Number);
-                    // Only use points on the right side of center line
-                    if (x >= centerX) {
-                        points.push(new THREE.Vector2(x - centerX, y));
+                const pathLength = shape.getTotalLength();
+                const numPoints = Math.floor(pathLength / SMOOTHING_DISTANCE);
+                
+                for (let i = 0; i <= numPoints; i++) {
+                    const point = shape.getPointAtLength((i / numPoints) * pathLength);
+                    if (point.x >= centerX) {
+                        // Swap Y and Z coordinates for the 90-degree rotation
+                        points.push(new THREE.Vector2(point.x - centerX, point.y));
                     }
-                });
+                }
             }
         });
 
@@ -220,14 +299,18 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Sort points by Y coordinate
         points.sort((a, b) => a.y - b.y);
 
         if (latheObject) {
             scene.remove(latheObject);
         }
 
-        const geometry = new THREE.LatheGeometry(points, 32);
+        const segments = Math.max(32, Math.floor(64 / SMOOTHING_DISTANCE));
+        const geometry = new THREE.LatheGeometry(points, segments);
+        
+        // Rotate the geometry 90 degrees around X axis
+        geometry.rotateX(-Math.PI / 2);
+
         const material = new THREE.MeshPhongMaterial({
             color: 0x808080,
             side: THREE.DoubleSide,
@@ -237,13 +320,13 @@ document.addEventListener('DOMContentLoaded', function() {
         latheObject = new THREE.Mesh(geometry, material);
         scene.add(latheObject);
 
-        // Center camera on object
         const bbox = new THREE.Box3().setFromObject(latheObject);
         const center = bbox.getCenter(new THREE.Vector3());
         const size = bbox.getSize(new THREE.Vector3());
         const maxDim = Math.max(size.x, size.y, size.z);
         
-        camera.position.set(maxDim * 2, maxDim, maxDim * 2);
+        // Adjust camera position for rotated view
+        camera.position.set(maxDim * 2, maxDim * 2, maxDim);
         camera.lookAt(center);
         controls.target.copy(center);
         controls.update();
@@ -265,7 +348,6 @@ document.addEventListener('DOMContentLoaded', function() {
         createLatheGeometry();
     }
 
-    // Export functions
     function exportSTL() {
         if (!latheObject) return;
         
@@ -298,7 +380,6 @@ document.addEventListener('DOMContentLoaded', function() {
     svg.addEventListener('mouseup', stopDrawing);
     svg.addEventListener('mouseleave', stopDrawing);
 
-    // Window resize handler
     window.addEventListener('resize', () => {
         if (renderer) {
             camera.aspect = previewContainer.clientWidth / previewContainer.clientHeight;
