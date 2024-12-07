@@ -8,7 +8,25 @@ const initializeDrawing = () => {
     const pointDensitySlider = document.getElementById('pointDensity');
     const densityValueDisplay = document.getElementById('densityValue');
     
-    // Tool buttons
+    // State Management
+    const state = {
+        currentTool: 'pen',
+        isDrawing: false,
+        currentShape: null,
+        startPoint: null,
+        pathPoints: [],
+        rawPoints: [],
+        shapes: [],
+        scene: null,
+        camera: null,
+        renderer: null,
+        controls: null,
+        latheObject: null,
+        smoothingDistance: 5,
+        bezierSmoothing: true
+    };
+
+    // Tool Configuration
     const tools = {
         pen: document.getElementById('penTool'),
         rectangle: document.getElementById('rectangleTool'),
@@ -20,54 +38,35 @@ const initializeDrawing = () => {
         exportSTL: document.getElementById('exportSTL')
     };
 
-    // State variables
-    let currentTool = 'pen';
-    let isDrawing = false;
-    let currentShape = null;
-    let startPoint = null;
-    let pathPoints = [];
-    let rawPoints = [];
-    let shapes = [];
-
-    // Three.js variables
-    let scene, camera, renderer, controls, latheObject;
-
-    // Smoothing configuration
-    let SMOOTHING_DISTANCE = 5;
-    const BEZIER_SMOOTHING = true;
-
-    // Point density control
-    if (pointDensitySlider) {
-        pointDensitySlider.addEventListener('input', function(e) {
-            SMOOTHING_DISTANCE = parseInt(e.target.value);
-            densityValueDisplay.textContent = `${SMOOTHING_DISTANCE}px`;
-            
-            if (currentShape && currentTool === 'pen' && rawPoints.length > 0) {
-                const smoothedPath = smoothPath(rawPoints);
-                currentShape.setAttribute("d", typeof smoothedPath === 'string' ? smoothedPath : smoothedPath.join(" "));
-            }
-        });
-    }
-
     // Utility Functions
-    function distanceBetweenPoints(p1, p2) {
-        return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
-    }
+    const getPosition = (event) => {
+        const CTM = svg.getScreenCTM();
+        const clientX = event.clientX || (event.touches ? event.touches[0].clientX : 0);
+        const clientY = event.clientY || (event.touches ? event.touches[0].clientY : 0);
+        return {
+            x: (clientX - CTM.e) / CTM.a,
+            y: (clientY - CTM.f) / CTM.d
+        };
+    };
 
-    function smoothPath(points) {
+    const distanceBetweenPoints = (p1, p2) => {
+        return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+    };
+
+    const smoothPath = (points) => {
         if (points.length < 3) return points;
 
         let filteredPoints = [points[0]];
         let lastPoint = points[0];
 
         for (let i = 1; i < points.length; i++) {
-            if (distanceBetweenPoints(lastPoint, points[i]) >= SMOOTHING_DISTANCE) {
+            if (distanceBetweenPoints(lastPoint, points[i]) >= state.smoothingDistance) {
                 filteredPoints.push(points[i]);
                 lastPoint = points[i];
             }
         }
 
-        if (!BEZIER_SMOOTHING) return filteredPoints;
+        if (!state.bezierSmoothing) return filteredPoints;
 
         let smoothedPath = `M ${filteredPoints[0].x} ${filteredPoints[0].y}`;
         
@@ -94,183 +93,155 @@ const initializeDrawing = () => {
         }
 
         return smoothedPath;
-    }
-
-    // Tool selection
-    Object.entries(tools).forEach(([name, button]) => {
-        if (!button) return;
-        button.onclick = () => {
-            if (name === 'clear') {
-                clearCanvas();
-                return;
-            }
-            if (name === 'preview3D') {
-                show3DPreview();
-                return;
-            }
-            if (name === 'exportSTL') {
-                exportSTL();
-                return;
-            }
-            if (name === 'exportSvg') {
-                exportSVG();
-                return;
-            }
-            currentTool = name;
-            Object.values(tools).forEach(b => b?.classList.remove('active'));
-            button.classList.add('active');
-        };
-    });
-
-    // Get mouse position relative to SVG
-    function getMousePosition(event) {
-        const CTM = svg.getScreenCTM();
-        return {
-            x: (event.clientX - CTM.e) / CTM.a,
-            y: (event.clientY - CTM.f) / CTM.d
-        };
-    }
+    };
 
     // Drawing Functions
-    function startDrawing(e) {
-        isDrawing = true;
-        const point = getMousePosition(e);
-        startPoint = point;
+    const createShape = (point) => {
+        const shapes = {
+            pen: () => {
+                const shape = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                shape.setAttribute("fill", "none");
+                shape.setAttribute("stroke", "black");
+                shape.setAttribute("stroke-width", "2");
+                state.rawPoints = [point];
+                state.pathPoints = [`M ${point.x} ${point.y}`];
+                return shape;
+            },
+            rectangle: () => {
+                const shape = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                shape.setAttribute("fill", "none");
+                shape.setAttribute("stroke", "black");
+                shape.setAttribute("stroke-width", "2");
+                shape.setAttribute("x", point.x);
+                shape.setAttribute("y", point.y);
+                return shape;
+            },
+            circle: () => {
+                const shape = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                shape.setAttribute("fill", "none");
+                shape.setAttribute("stroke", "black");
+                shape.setAttribute("stroke-width", "2");
+                shape.setAttribute("cx", point.x);
+                shape.setAttribute("cy", point.y);
+                return shape;
+            }
+        };
 
-        switch (currentTool) {
-            case 'pen':
-                currentShape = document.createElementNS("http://www.w3.org/2000/svg", "path");
-                currentShape.setAttribute("fill", "none");
-                currentShape.setAttribute("stroke", "black");
-                currentShape.setAttribute("stroke-width", "2");
-                rawPoints = [point];
-                pathPoints = [`M ${point.x} ${point.y}`];
-                break;
-            case 'rectangle':
-                currentShape = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                currentShape.setAttribute("fill", "none");
-                currentShape.setAttribute("stroke", "black");
-                currentShape.setAttribute("stroke-width", "2");
-                currentShape.setAttribute("x", point.x);
-                currentShape.setAttribute("y", point.y);
-                break;
-            case 'circle':
-                currentShape = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-                currentShape.setAttribute("fill", "none");
-                currentShape.setAttribute("stroke", "black");
-                currentShape.setAttribute("stroke-width", "2");
-                currentShape.setAttribute("cx", point.x);
-                currentShape.setAttribute("cy", point.y);
-                break;
-        }
+        return shapes[state.currentTool] ? shapes[state.currentTool]() : null;
+    };
 
-        if (currentShape) {
-            svg.appendChild(currentShape);
-            shapes.push(currentShape);
-        }
-    }
-
-    function draw(e) {
-        if (!isDrawing) return;
-        const point = getMousePosition(e);
-
-        switch (currentTool) {
-            case 'pen':
-                rawPoints.push(point);
-                if (BEZIER_SMOOTHING) {
-                    const smoothedPath = smoothPath(rawPoints);
-                    currentShape.setAttribute("d", typeof smoothedPath === 'string' ? smoothedPath : smoothedPath.join(" "));
+    const updateShape = (point) => {
+        const updates = {
+            pen: () => {
+                state.rawPoints.push(point);
+                if (state.bezierSmoothing) {
+                    const smoothedPath = smoothPath(state.rawPoints);
+                    state.currentShape.setAttribute("d", typeof smoothedPath === 'string' ? smoothedPath : smoothedPath.join(" "));
                 } else {
-                    pathPoints.push(`L ${point.x} ${point.y}`);
-                    currentShape.setAttribute("d", pathPoints.join(" "));
+                    state.pathPoints.push(`L ${point.x} ${point.y}`);
+                    state.currentShape.setAttribute("d", state.pathPoints.join(" "));
                 }
-                break;
-            case 'rectangle':
-                const width = point.x - startPoint.x;
-                const height = point.y - startPoint.y;
-                currentShape.setAttribute("width", Math.abs(width));
-                currentShape.setAttribute("height", Math.abs(height));
-                currentShape.setAttribute("x", width < 0 ? point.x : startPoint.x);
-                currentShape.setAttribute("y", height < 0 ? point.y : startPoint.y);
-                break;
-            case 'circle':
+            },
+            rectangle: () => {
+                const width = point.x - state.startPoint.x;
+                const height = point.y - state.startPoint.y;
+                state.currentShape.setAttribute("width", Math.abs(width));
+                state.currentShape.setAttribute("height", Math.abs(height));
+                state.currentShape.setAttribute("x", width < 0 ? point.x : state.startPoint.x);
+                state.currentShape.setAttribute("y", height < 0 ? point.y : state.startPoint.y);
+            },
+            circle: () => {
                 const radius = Math.sqrt(
-                    Math.pow(point.x - startPoint.x, 2) + 
-                    Math.pow(point.y - startPoint.y, 2)
+                    Math.pow(point.x - state.startPoint.x, 2) + 
+                    Math.pow(point.y - state.startPoint.y, 2)
                 );
-                currentShape.setAttribute("r", radius);
-                break;
-        }
-    }
+                state.currentShape.setAttribute("r", radius);
+            }
+        };
 
-    function stopDrawing() {
-        if (isDrawing && currentTool === 'pen') {
-            const finalPath = smoothPath(rawPoints);
-            currentShape.setAttribute("d", typeof finalPath === 'string' ? finalPath : finalPath.join(" "));
+        if (updates[state.currentTool]) {
+            updates[state.currentTool]();
         }
-        isDrawing = false;
-        currentShape = null;
-        startPoint = null;
-        rawPoints = [];
-    }
+    };
 
-    function clearCanvas() {
-        shapes.forEach(shape => shape.remove());
-        shapes = [];
-        pathPoints = [];
-        rawPoints = [];
-        if (previewContainer.style.display === 'block') {
-            previewContainer.style.display = 'none';
-            svg.style.display = 'block';
+    const startDrawing = (e) => {
+        e.preventDefault();
+        state.isDrawing = true;
+        const point = getPosition(e);
+        state.startPoint = point;
+        state.currentShape = createShape(point);
+
+        if (state.currentShape) {
+            svg.appendChild(state.currentShape);
+            state.shapes.push(state.currentShape);
         }
-        if (renderer) {
-            renderer.dispose();
-            renderer = null;
+    };
+
+    const draw = (e) => {
+        e.preventDefault();
+        if (!state.isDrawing) return;
+        updateShape(getPosition(e));
+    };
+
+    const stopDrawing = (e) => {
+        e.preventDefault();
+        if (state.isDrawing && state.currentTool === 'pen') {
+            const finalPath = smoothPath(state.rawPoints);
+            state.currentShape.setAttribute("d", typeof finalPath === 'string' ? finalPath : finalPath.join(" "));
         }
-        if (tools.exportSTL) tools.exportSTL.style.display = 'none';
-    }
+        state.isDrawing = false;
+        state.currentShape = null;
+        state.startPoint = null;
+        state.rawPoints = [];
+    };
 
     // 3D Preview Functions
-    function init3DScene() {
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(75, previewContainer.clientWidth / previewContainer.clientHeight, 0.1, 1000);
+    const init3DScene = () => {
+        state.scene = new THREE.Scene();
+        state.camera = new THREE.PerspectiveCamera(
+            75,
+            previewContainer.clientWidth / previewContainer.clientHeight,
+            0.1,
+            1000
+        );
         
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(previewContainer.clientWidth, previewContainer.clientHeight);
-        renderer.setClearColor(0xf0f0f0);
+        state.renderer = new THREE.WebGLRenderer({ antialias: true });
+        state.renderer.setSize(previewContainer.clientWidth, previewContainer.clientHeight);
+        state.renderer.setClearColor(0xf0f0f0);
+        
         previewContainer.innerHTML = '';
-        previewContainer.appendChild(renderer.domElement);
+        previewContainer.appendChild(state.renderer.domElement);
         
-        controls = new THREE.OrbitControls(camera, renderer.domElement);
-        camera.position.set(0, 0, 200);
+        state.controls = new THREE.OrbitControls(state.camera, state.renderer.domElement);
+        state.camera.position.set(0, 0, 200);
         
         const ambientLight = new THREE.AmbientLight(0x404040);
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
         directionalLight.position.set(1, 1, 1);
-        scene.add(ambientLight);
-        scene.add(directionalLight);
+        state.scene.add(ambientLight);
+        state.scene.add(directionalLight);
         
         animate();
-    }
+    };
 
-    function animate() {
+    const animate = () => {
         requestAnimationFrame(animate);
-        if (controls) controls.update();
-        if (renderer && scene && camera) {
-            renderer.render(scene, camera);
+        if (state.controls) state.controls.update();
+        if (state.renderer && state.scene && state.camera) {
+            state.renderer.render(state.scene, state.camera);
         }
-    }
+    };
 
-    function createLatheGeometry() {
-        if (shapes.length === 0) return;
+    const createLatheGeometry = () => {
+        if (state.shapes.length === 0) return;
 
         const points = [];
         const centerX = 275;
 
-        shapes.forEach(shape => {
+        state.shapes.forEach(shape => {
             if (shape.tagName === 'path') {
                 const pathLength = shape.getTotalLength();
-                const numPoints = Math.floor(pathLength / SMOOTHING_DISTANCE);
+                const numPoints = Math.floor(pathLength / state.smoothingDistance);
                 
                 for (let i = 0; i <= numPoints; i++) {
                     const point = shape.getPointAtLength((i / numPoints) * pathLength);
@@ -288,13 +259,12 @@ const initializeDrawing = () => {
 
         points.sort((a, b) => a.y - b.y);
 
-        if (latheObject) {
-            scene.remove(latheObject);
+        if (state.latheObject) {
+            state.scene.remove(state.latheObject);
         }
 
-        const segments = Math.max(32, Math.floor(64 / SMOOTHING_DISTANCE));
+        const segments = Math.max(32, Math.floor(64 / state.smoothingDistance));
         const geometry = new THREE.LatheGeometry(points, segments);
-        
         geometry.rotateX(-Math.PI / 2);
 
         const material = new THREE.MeshPhongMaterial({
@@ -303,41 +273,26 @@ const initializeDrawing = () => {
             flatShading: false
         });
 
-        latheObject = new THREE.Mesh(geometry, material);
-        scene.add(latheObject);
+        state.latheObject = new THREE.Mesh(geometry, material);
+        state.scene.add(state.latheObject);
 
-        const bbox = new THREE.Box3().setFromObject(latheObject);
+        const bbox = new THREE.Box3().setFromObject(state.latheObject);
         const center = bbox.getCenter(new THREE.Vector3());
         const size = bbox.getSize(new THREE.Vector3());
         const maxDim = Math.max(size.x, size.y, size.z);
         
-        camera.position.set(maxDim * 2, maxDim * 2, maxDim);
-        camera.lookAt(center);
-        controls.target.copy(center);
-        controls.update();
-    }
+        state.camera.position.set(maxDim * 2, maxDim * 2, maxDim);
+        state.camera.lookAt(center);
+        state.controls.target.copy(center);
+        state.controls.update();
+    };
 
-    function show3DPreview() {
-        if (shapes.length === 0) {
-            alert('Please draw something first');
-            return;
-        }
-
-        svg.style.display = 'none';
-        previewContainer.style.display = 'block';
-        if (tools.exportSTL) tools.exportSTL.style.display = 'inline-block';
-
-        if (!renderer) {
-            init3DScene();
-        }
-        createLatheGeometry();
-    }
-
-    function exportSTL() {
-        if (!latheObject) return;
+    // Export Functions
+    const exportSTL = () => {
+        if (!state.latheObject) return;
         
         const exporter = new THREE.STLExporter();
-        const stlString = exporter.parse(scene);
+        const stlString = exporter.parse(state.scene);
         
         const blob = new Blob([stlString], { type: 'application/octet-stream' });
         const url = URL.createObjectURL(blob);
@@ -346,9 +301,9 @@ const initializeDrawing = () => {
         a.download = 'model.stl';
         a.click();
         URL.revokeObjectURL(url);
-    }
+    };
 
-    function exportSVG() {
+    const exportSVG = () => {
         const svgData = new XMLSerializer().serializeToString(svg);
         const blob = new Blob([svgData], { type: 'image/svg+xml' });
         const url = URL.createObjectURL(blob);
@@ -357,25 +312,122 @@ const initializeDrawing = () => {
         a.download = 'drawing.svg';
         a.click();
         URL.revokeObjectURL(url);
-    }
+    };
+
+    // UI Functions
+    const clearCanvas = () => {
+        state.shapes.forEach(shape => shape.remove());
+        state.shapes = [];
+        state.pathPoints = [];
+        state.rawPoints = [];
+        
+        if (previewContainer.style.display === 'block') {
+            previewContainer.style.display = 'none';
+            svg.style.display = 'block';
+        }
+        
+        if (state.renderer) {
+            state.renderer.dispose();
+            state.renderer = null;
+        }
+        
+        if (tools.exportSTL) {
+            tools.exportSTL.style.display = 'none';
+        }
+    };
+
+    const show3DPreview = () => {
+        if (state.shapes.length === 0) {
+            alert('Please draw something first');
+            return;
+        }
+
+        svg.style.display = 'none';
+        previewContainer.style.display = 'block';
+        if (tools.exportSTL) {
+            tools.exportSTL.style.display = 'inline-block';
+        }
+
+        if (!state.renderer) {
+            init3DScene();
+        }
+        createLatheGeometry();
+    };
 
     // Event Listeners
-    svg.addEventListener('mousedown', startDrawing);
-    svg.addEventListener('mousemove', draw);
-    svg.addEventListener('mouseup', stopDrawing);
-    svg.addEventListener('mouseleave', stopDrawing);
+    const addEventListeners = () => {
+        // Touch events
+        svg.addEventListener('touchstart', startDrawing, { passive: false });
+        svg.addEventListener('touchmove', draw, { passive: false });
+        svg.addEventListener('touchend', stopDrawing, { passive: false });
+        svg.addEventListener('touchcancel', stopDrawing, { passive: false });
 
-    // Window resize handler
-    window.addEventListener('resize', () => {
-        if (renderer) {
-            camera.aspect = previewContainer.clientWidth / previewContainer.clientHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(previewContainer.clientWidth, previewContainer.clientHeight);
+        // Mouse events
+        svg.addEventListener('mousedown', startDrawing);
+        svg.addEventListener('mousemove', draw);
+        svg.addEventListener('mouseup', stopDrawing);
+        svg.addEventListener('mouseleave', stopDrawing);
+
+        // Tool selection
+        Object.entries(tools).forEach(([name, button]) => {
+            if (!button) return;
+            button.addEventListener('click', () => {
+                if (name === 'clear') {
+                    clearCanvas();
+                    return;
+                }
+                if (name === 'preview3D') {
+                    show3DPreview();
+                    return;
+                }
+                if (name === 'exportSTL') {
+                    exportSTL();
+                    return;
+                }
+                if (name === 'exportSvg') {
+                    exportSVG();
+                    return;
+                }
+                state.currentTool = name;
+                Object.values(tools).forEach(b => b?.classList.remove('active'));
+                button.classList.add('active');
+            });
+        });
+
+        // Point density control
+        if (pointDensitySlider) {
+            pointDensitySlider.addEventListener('input', (e) => {
+                state.smoothingDistance = parseInt(e.target.value);
+                densityValueDisplay.textContent = `${state.smoothingDistance}px`;
+                
+                if (state.currentShape && state.currentTool === 'pen' && state.rawPoints.length > 0) {
+                    const smoothedPath = smoothPath(state.rawPoints);
+                    state.currentShape.setAttribute("d", typeof smoothedPath === 'string' ? smoothedPath : smoothedPath.join(" "));
+                }
+            });
         }
-    });
 
-    // Set pen tool as active by default
-    if (tools.pen) tools.pen.classList.add('active');
+        // Window resize handler
+        window.addEventListener('resize', () => {
+            if (state.renderer) {
+                state.camera.aspect = previewContainer.clientWidth / previewContainer.clientHeight;
+                state.camera.updateProjectionMatrix();
+                state.renderer.setSize(previewContainer.clientWidth, previewContainer.clientHeight);
+            }
+        });
+    };
+
+    // Initialize the application
+    const initialize = () => {
+        // Set pen tool as active by default
+        if (tools.pen) tools.pen.classList.add('active');
+        
+        // Add all event listeners
+        addEventListeners();
+    };
+
+    // Start the application
+    initialize();
 };
 
 // Initialize when imported
