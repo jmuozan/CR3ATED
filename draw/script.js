@@ -287,12 +287,52 @@ const initializeDrawing = () => {
         state.controls.update();
     };
 
-    // Export Functions
+    // ... previous code remains the same until exportSTL function ...
+
+    const scaleToBox = (object, targetSize = 10) => {
+        // Get the current bounding box
+        const bbox = new THREE.Box3().setFromObject(object);
+        const size = bbox.getSize(new THREE.Vector3());
+        
+        // Find the largest dimension
+        const maxDimension = Math.max(size.x, size.y, size.z);
+        
+        // Calculate the scale factor needed
+        const scaleFactor = targetSize / maxDimension;
+        
+        // Apply the scale
+        object.scale.multiplyScalar(scaleFactor);
+        
+        // Update the bounding box after scaling
+        bbox.setFromObject(object);
+        
+        // Center the object
+        const center = bbox.getCenter(new THREE.Vector3());
+        object.position.sub(center);
+        
+        return object;
+    };
+
     const exportSTL = () => {
         if (!state.latheObject) return;
         
+        // Create a copy of the lathe object for export
+        const exportObject = state.latheObject.clone();
+        
+        // Scale the copy to 10x10x10 bounding box
+        scaleToBox(exportObject, 10);
+        
+        // Create a temporary scene for the scaled object
+        const exportScene = new THREE.Scene();
+        exportScene.add(exportObject);
+        
         const exporter = new THREE.STLExporter();
-        const stlString = exporter.parse(state.scene);
+        const stlString = exporter.parse(exportScene);
+        
+        // Clean up
+        exportScene.remove(exportObject);
+        exportObject.geometry.dispose();
+        exportObject.material.dispose();
         
         const blob = new Blob([stlString], { type: 'application/octet-stream' });
         const url = URL.createObjectURL(blob);
@@ -302,6 +342,8 @@ const initializeDrawing = () => {
         a.click();
         URL.revokeObjectURL(url);
     };
+
+    // ... rest of the code remains the same ...
 
     const exportSVG = () => {
         const svgData = new XMLSerializer().serializeToString(svg);
